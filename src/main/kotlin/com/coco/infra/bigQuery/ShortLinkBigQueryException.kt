@@ -1,0 +1,1 @@
+class ShortLinkBigQueryException(message: String) : RuntimeException(message)

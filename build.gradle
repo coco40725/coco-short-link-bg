@@ -1,0 +1,61 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version "2.0.0"
+    id "org.jetbrains.kotlin.plugin.allopen" version "2.0.0"
+    id 'io.quarkus'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+    implementation 'io.quarkiverse.googlecloudservices:quarkus-google-cloud-bigquery'
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:quarkus-google-cloud-services-bom:${quarkusPlatformVersion}")
+    implementation enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}")
+    implementation 'io.quarkus:quarkus-rest'
+    implementation 'io.quarkus:quarkus-mongodb-client'
+    implementation 'io.quarkus:quarkus-rest-jackson'
+    implementation 'io.quarkus:quarkus-kotlin'
+    implementation 'io.quarkus:quarkus-redis-client'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+    implementation 'io.quarkus:quarkus-arc'
+    implementation 'io.quarkiverse.googlecloudservices:quarkus-google-cloud-pubsub'
+    implementation "io.quarkus:quarkus-smallrye-health"
+    implementation "io.quarkus:quarkus-rest-client-jackson"
+
+    // pod communication: grpc
+    implementation "io.quarkus:quarkus-grpc"
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.rest-assured:rest-assured'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+}
+
+group 'com.coco'
+version '1.0.0-SNAPSHOT'
+
+java {
+}
+
+test {
+    systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+}
+allOpen {
+    annotation("jakarta.ws.rs.Path")
+    annotation("jakarta.enterprise.context.ApplicationScoped")
+    annotation("jakarta.persistence.Entity")
+    annotation("io.quarkus.test.junit.QuarkusTest")
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = JavaVersion.VERSION_21
+    kotlinOptions.javaParameters = true
+}
+
+compileTestKotlin {
+    kotlinOptions.jvmTarget = JavaVersion.VERSION_21
+}
+kotlin {
+    jvmToolchain(21)
+}

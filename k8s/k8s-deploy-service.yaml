@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: coco
+  name: coco-short-link-bg
+  labels:
+    app: coco-short-link-bg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coco-short-link-bg
+  template:
+    metadata:
+      labels:
+        app: coco-short-link-bg
+    spec:
+      containers:
+        - name: coco-short-link-bg
+          image: asia-east1-docker.pkg.dev/aaron-dev-429414/coco-short-link-bg/test-image:latest-SNAPSHOT
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /q/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8080
+            initialDelaySeconds: 300
+            periodSeconds: 30
+          resources:
+            requests:
+              memory: "250Mi"
+              cpu: "100m"
+            limits:
+              memory: "500Mi"
+              cpu: "500m"
+          env:
+            - name: WEBSITE_DOMAIN
+              value: "https://short.coco-dev.com"
+
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: coco-mongodb-uri
+                  key: uri
+
+            - name: REDIS_URI
+              valueFrom:
+                secretKeyRef:
+                  name: coco-redis-uri
+                  key: uri
+
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret-key
+                  key: key
+
+            - name: USER_POD_IP
+              valueFrom:
+                configMapKeyRef:
+                  name: pod-internal-ip
+                  key: user-ip
+
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/gcp/gcp_credentials.json
+
+          volumeMounts:
+            - name: gcp-credentials-volume
+              mountPath: /etc/gcp
+              readOnly: true
+
+      volumes:
+        - name: gcp-credentials-volume
+          secret:
+            secretName: gcp-credentials
+            items:
+              - key: credentials
+                path: gcp_credentials.json
+
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: coco-short-link-bg
+  namespace: coco
+  labels:
+    app: coco-short-link-bg
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: coco-short-link-bg

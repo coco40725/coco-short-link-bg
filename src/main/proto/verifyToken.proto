@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.cocodev.grpc.verifyToken";
+option java_outer_classname = "VerifyTokenProto";
+
+package verifyToken;
+
+// service
+service VerifyTokenSvc {
+  rpc VerifyToken (VerifyTokenRequest) returns (VerifyTokenResponse) {}
+}
+// request
+message VerifyTokenRequest {
+  string token = 1;
+}
+
+// response
+message VerifyTokenResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
