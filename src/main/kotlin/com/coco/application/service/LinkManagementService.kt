@@ -112,7 +112,11 @@ class LinkManagementService @Inject constructor(
         return linkInfoRepo.updateOne(enabledInfo).chain { updatedInfo ->
             if (updatedInfo != null) {
                 val redisEnabledUni = redisRepo.setHash(updatedInfo.shortLink!!,  originalLinkField, updatedInfo.originalLink!!).map { it }
-                val ttlUni = linkInfoExpireTTLRepo.createOrUpdate(updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate!!).map { it != null }
+                val ttlUni = when (updatedInfo.expirationDate) {
+                    null -> Uni.createFrom().item(true)
+                    else -> linkInfoExpireTTLRepo.createOrUpdate(updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate !!).map { it != null }
+                }
+
                 Uni.combine().all().unis(redisEnabledUni, ttlUni).with { redisResult, ttlResult ->
                     redisResult && ttlResult
                 }

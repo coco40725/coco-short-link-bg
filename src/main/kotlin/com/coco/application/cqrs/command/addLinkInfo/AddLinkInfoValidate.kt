@@ -52,7 +52,7 @@ class AddLinkInfoValidate @Inject constructor(
         val shortLinkExistUni = if (shortLink != null) {
             linkManagementService.checkShortLinkIsExist(shortLink)
         } else {
-            Uni.createFrom().nullItem()
+            Uni.createFrom().item(false)
         }
 
 
@@ -69,8 +69,8 @@ class AddLinkInfoValidate @Inject constructor(
         return Uni.combine().all().unis(
             shortLinkExistUni,
             tokenUni
-        ).with { link, payload ->
-            if (link != null) {
+        ).with { linkExist, payload ->
+            if (linkExist) {
                 isValid = false
                 message.add("short link is exist")
             }
@@ -79,7 +79,7 @@ class AddLinkInfoValidate @Inject constructor(
                 message.add("token is invalid")
                 AddLinkInfoValidateResult(isValid, message)
             }
-            AddLinkInfoValidateResult(isValid, message)
+            AddLinkInfoValidateResult(isValid, message, payload)
         }
     }
 

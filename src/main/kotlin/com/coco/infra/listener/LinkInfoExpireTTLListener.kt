@@ -50,6 +50,11 @@ class LinkInfoExpireTTLListener @Inject constructor(
         val linkInfoId = document.getString("linkInfoId")
         val shortLink = document.getString("shortLink")
 
+        // check the linkInfo is expired
+        val checkExpireUni = linkInfoRepo.getOneById(linkInfoId).map {
+            it?.expirationDate != null && it.expirationDate!!.before(Date())
+        }.memoize().indefinitely()
+        
         // update linkInfo enabled to false
         val updatedLinkInfo = LinkInfo(
             id = ObjectId(linkInfoId),
@@ -61,8 +66,14 @@ class LinkInfoExpireTTLListener @Inject constructor(
         // delete cache
         val deleteCacheUni = redisRepo.delHash(shortLink, "originalLink")
 
-        return Uni.combine().all().unis(disableLinkInfoUni, deleteCacheUni).with { _, _ -> }
-
+        return checkExpireUni.chain { isExpired ->
+            if (isExpired) {
+                Uni.combine().all().unis(disableLinkInfoUni, deleteCacheUni).with { _, _ -> }
+            } else {
+                Uni.createFrom().nullItem()
+            }
+        }
     }
+
 
 }
