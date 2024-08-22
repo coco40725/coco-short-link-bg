@@ -184,7 +184,11 @@ class LinkManagementService @Inject constructor(
     fun checkShortLinkIsExpired(id: String): Uni<Boolean> {
         return linkInfoRepo.getOneById(id).map { it ->
             if (it == null) throw CheckShortLinkIsExpiredException("short link is not exist")
-            it.expirationDate != null && it.expirationDate!!.after(Date())
+            if (it.expirationDate == null) {
+                true
+            } else {
+                it.expirationDate!!.after(Date())
+            }
         }
     }
 
