@@ -24,6 +24,8 @@ dependencies {
     implementation "io.quarkus:quarkus-smallrye-health"
     implementation "io.quarkus:quarkus-rest-client-jackson"
 
+    implementation("io.quarkus:quarkus-micrometer-registry-prometheus")
+
     // pod communication: grpc
     implementation "io.quarkus:quarkus-grpc"
 

@@ -4,7 +4,6 @@ import com.coco.application.middleware.header.GetHeader
 import com.coco.application.cqrs.DefaultActionExecutor
 import com.coco.application.cqrs.command.addLinkInfo.AddLinkInfoCommand
 import com.coco.application.cqrs.command.addLinkInfo.AddLinkInfoResult
-import com.coco.application.cqrs.command.base.CommandValidationException
 import com.coco.application.cqrs.command.changeExpireDate.ChangeExpireDateCommand
 import com.coco.application.cqrs.command.changeOriginLink.ChangeOriginLinkCommand
 import com.coco.application.cqrs.command.disabledLinkInfo.DisabledLinkInfoCommand
@@ -47,15 +46,7 @@ class LinkInfoCtrl @Inject constructor(
     fun addLinkInfo(command: AddLinkInfoCommand): Uni<AddLinkInfoResult?> {
         command.jwt = jwt
         return executor.validateCommand(command)
-            .chain { validateResult ->
-                val isValid = validateResult.isValid
-                val message = validateResult.message
-                if (isValid) {
-                    executor.executeCommand(command, validateResult)
-                } else {
-                    throw CommandValidationException("${command::class.java.name} validator fail; cause by : ${message}")
-                }
-            }
+            .chain { validateResult -> executor.executeCommand(command, validateResult) }
     }
 
 
@@ -64,14 +55,8 @@ class LinkInfoCtrl @Inject constructor(
     @Path("/disable-link-info")
     fun disabledLinkInfo(@QueryParam("id") id: String): Uni<Boolean> {
         val command = DisabledLinkInfoCommand(id, jwt)
-        return executor.validateCommand(command).chain { validateResult ->
-            val isValid = validateResult.isValid
-            val message = validateResult.message
-            if (isValid) {
-                executor.executeCommand(command)
-            } else {
-                throw CommandValidationException("${command::class.java.name} validator fail; cause by : ${message}")
-            }
+        return executor.validateCommand(command)
+            .chain { _  -> executor.executeCommand(command)
         }
     }
 
@@ -80,15 +65,8 @@ class LinkInfoCtrl @Inject constructor(
     @Path("/enable-link-info")
     fun enabledLinkInfo(@QueryParam("id") id: String): Uni<Boolean> {
         val command = EnabledLinkInfoCommand(id, jwt)
-        return executor.validateCommand(command).chain { validateResult ->
-            val isValid = validateResult.isValid
-            val message = validateResult.message
-            if (isValid) {
-                executor.executeCommand(command)
-            } else {
-                throw CommandValidationException("${command::class.java.name} validator fail; cause by : ${message}")
-            }
-        }
+        return executor.validateCommand(command)
+            .chain { _  -> executor.executeCommand(command) }
     }
 
     @PATCH
@@ -96,15 +74,8 @@ class LinkInfoCtrl @Inject constructor(
     @Path("/change-origin-link-info")
     fun changeOriginLink(command: ChangeOriginLinkCommand): Uni<Boolean> {
         command.jwt = jwt
-        return executor.validateCommand(command).chain { validateResult ->
-            val isValid = validateResult.isValid
-            val message = validateResult.message
-            if (isValid) {
-                executor.executeCommand(command)
-            } else {
-                throw CommandValidationException("${command::class.java.name} validator fail; cause by : ${message}")
-            }
-        }
+        return executor.validateCommand(command)
+            .chain { _ ->executor.executeCommand(command) }
     }
 
     @PATCH
@@ -112,15 +83,8 @@ class LinkInfoCtrl @Inject constructor(
     @Path("/change-expire-date")
     fun changeExpireDate(command: ChangeExpireDateCommand): Uni<Boolean> {
         command.jwt = jwt
-        return executor.validateCommand(command).chain { validateResult ->
-            val isValid = validateResult.isValid
-            val message = validateResult.message
-            if (isValid) {
-                executor.executeCommand(command)
-            } else {
-                throw CommandValidationException("${command::class.java.name} validator fail; cause by : ${message}")
-            }
-        }
+        return executor.validateCommand(command)
+            .chain { _  -> executor.executeCommand(command) }
     }
 
     @GET

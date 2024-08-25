@@ -1,14 +1,13 @@
 package com.coco.application.service
 
-import com.coco.application.service.exception.CheckShortLinkIsExpiredException
+import com.coco.application.exception.ApplicationException
 import com.coco.domain.model.LinkInfo
 import com.coco.domain.service.linkInfo.LinkInfoSvc
 import com.coco.infra.constant.RedisConstant
+import com.coco.infra.exception.RepoException
 import com.coco.infra.repo.LinkInfoExpireTTLRepo
 import com.coco.infra.repo.LinkInfoRepo
 import com.coco.infra.repo.RedisRepo
-import com.coco.infra.repo.exception.LinkInfoInsertException
-import com.coco.infra.repo.exception.RedisCachePopFailedException
 import com.coco.infra.util.Log
 import io.smallrye.mutiny.Uni
 import jakarta.enterprise.context.ApplicationScoped
@@ -74,7 +73,7 @@ class LinkManagementService @Inject constructor(
 
         return Uni.combine().all().unis(redisUni, linkInfoUni)
             .with { _, dbResult -> dbResult }
-            .onFailure(LinkInfoInsertException::class.java).call { _ ->
+            .onFailure(RepoException::class.java).call { _ ->
                 redisRepo.delHash(info.shortLink!!, originalLinkField)
             }
     }
@@ -186,12 +185,17 @@ class LinkManagementService @Inject constructor(
 
     }
     fun checkShortLinkIsExpired(id: String): Uni<Boolean> {
-        return linkInfoRepo.getOneById(id).map { it ->
-            if (it == null) throw CheckShortLinkIsExpiredException("short link is not exist")
-            if (it.expirationDate == null) {
-                true
+        return linkInfoRepo.getOneById(id).chain { it ->
+            if (it == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::checkShortLinkIsExpired.name,
+                    message = "short link is not exist")
+                )
+            } else if (it.expirationDate == null) {
+                Uni.createFrom().item(true)
             } else {
-                it.expirationDate!!.after(Date())
+                Uni.createFrom().item(it.expirationDate!!.after(Date()))
             }
         }
     }

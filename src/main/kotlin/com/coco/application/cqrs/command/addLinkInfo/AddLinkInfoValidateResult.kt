@@ -8,8 +8,6 @@ import com.coco.domain.model.User
 @create 2024-08-15-下午 04:32
  */
 data class AddLinkInfoValidateResult(
-    override var isValid: Boolean = true,
-    override var message: List<String>? = null,
     var user: User? = null
 
-): CommandValidateResult(isValid, message)
+): CommandValidateResult()

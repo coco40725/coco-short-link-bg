@@ -3,7 +3,7 @@
 # 定義變數
 DOCKER_IMAGE=[AR_path]
 DOCKERFILE="src/main/docker/Dockerfile.jvm"
-APP_NAME="coco-user-bg"
+APP_NAME="coco-short-link-bg"
 
 # 忽略 test 進行 build
 ./gradlew build -x test

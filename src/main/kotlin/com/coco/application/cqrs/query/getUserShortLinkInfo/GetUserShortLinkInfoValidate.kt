@@ -1,6 +1,7 @@
 package com.coco.application.cqrs.query.getUserShortLinkInfo
 
 import com.coco.application.cqrs.query.base.QueryValidateResult
+import com.coco.application.exception.QueryValidationException
 import com.coco.application.cqrs.query.base.QueryValidator
 import com.coco.infra.client.VerifyTokenClient
 import io.smallrye.mutiny.Uni
@@ -17,36 +18,26 @@ import jakarta.inject.Named
 class GetUserShortLinkInfoValidate @Inject constructor(
     @Named("grpc") private val verifyTokenClient: VerifyTokenClient
 ): QueryValidator<GetUserShortLinkInfoQuery> {
+    private val className = GetUserShortLinkInfoValidate::class.java.simpleName
     override fun validateQuery(query: GetUserShortLinkInfoQuery): Uni<QueryValidateResult> {
-        var isValid = true
-        val message = mutableListOf<String>()
-        val jwt = query.jwt
+        val token = query.jwt?.token
+
         // rule1: jwt must not be null
-        if (jwt == null) {
-            isValid = false
-            message.add("jwt must not be null")
-            return Uni.createFrom().item(GetUserShortLinkInfoValidateResult(isValid, message))
+        if (token.isNullOrBlank()) {
+            return Uni.createFrom().failure(QueryValidationException(className, ValidateMessage.TOKEN_INVALID.name))
         }
 
-
-        // rule2: token must not be null
-        if (jwt.token.isNullOrEmpty()) {
-            isValid = false
-            message.add("token must not be null or empty")
-            return Uni.createFrom().item(GetUserShortLinkInfoValidateResult(isValid, message))
-        }
-
-        // rule3: verify token
-        val token = jwt.token !!
-        return verifyTokenClient.verifyToken(token).map { payload ->
+        return verifyTokenClient.verifyToken(token).chain { payload ->
             if (payload == null) {
-                isValid = false
-                message.add("token is invalid")
-                GetUserShortLinkInfoValidateResult(isValid, message)
+                Uni.createFrom().failure(QueryValidationException(className, ValidateMessage.TOKEN_INVALID.name))
 
             } else {
-                GetUserShortLinkInfoValidateResult(isValid, message, payload)
+                Uni.createFrom().item(GetUserShortLinkInfoValidateResult( payload))
             }
         }
     }
+}
+
+enum class ValidateMessage {
+    TOKEN_INVALID
 }

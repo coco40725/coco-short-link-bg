@@ -1,8 +1,7 @@
 package com.coco.infra.repo
 
 import com.coco.domain.model.LinkInfo
-import com.coco.infra.repo.exception.LinkInfoInsertException
-import com.coco.infra.repo.exception.LinkInfoUpdateException
+import com.coco.infra.exception.RepoException
 import com.mongodb.ReadPreference
 import com.mongodb.client.model.*
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
@@ -36,6 +35,8 @@ class LinkInfoRepo @Inject constructor(
     private val shortLinkIndex = IndexOptions().name("shortLink")
         .unique(true)
         .background(true)
+
+    private val className = this::class.simpleName
 
     @PostConstruct
     fun init(){
@@ -121,13 +122,17 @@ class LinkInfoRepo @Inject constructor(
 
     fun insertOne(info: LinkInfo): Uni<LinkInfo?> {
         val document = toDocument(info)
-        return writeCol.insertOne(document).map {
+        return writeCol.insertOne(document).chain { it ->
             if (it.wasAcknowledged()) {
                 val insertId = document?.getObjectId("_id")
                 info.id = insertId
-                info
+                Uni.createFrom().item(info)
             } else {
-                throw LinkInfoInsertException("Failed to insert linkInfo: $info")
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::insertOne.name,
+                    "Failed to insert linkInfo: $info"
+                ))
             }
         }
     }
@@ -142,9 +147,17 @@ class LinkInfoRepo @Inject constructor(
             FindOneAndUpdateOptions()
                 .upsert(false)
                 .returnDocument(ReturnDocument.AFTER)
-        ).map { it ->
-            if (it == null) throw LinkInfoUpdateException("Failed to update linkInfo: $linkInfo")
-            toObject(it)
+        ).chain { it ->
+            if (it == null) {
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::updateOne.name,
+                    "Failed to update linkInfo: $linkInfo"
+                ))
+            } else {
+                Uni.createFrom().item(toObject(it))
+            }
+
         }
     }
 
@@ -153,9 +166,16 @@ class LinkInfoRepo @Inject constructor(
         return writeCol.updateOne(
             Filters.eq("_id", id),
             update
-        ).map { it ->
-            if (!it.wasAcknowledged()) throw LinkInfoUpdateException("Failed to remove expireDate: $id")
-            true
+        ).chain { it ->
+            if (!it.wasAcknowledged()) {
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::removeExpireDate.name,
+                    "Failed to remove expireDate: $id"
+                ))
+            } else {
+                Uni.createFrom().item(true)
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.coco.infra.grpc
 
 import com.coco.domain.model.User
 import com.coco.infra.client.VerifyTokenClient
+import com.coco.infra.exception.GrpcConnectionException
 import com.cocodev.grpc.verifyToken.VerifyTokenRequest
 import com.cocodev.grpc.verifyToken.VerifyTokenSvc
 import io.quarkus.grpc.GrpcClient
@@ -23,8 +24,13 @@ class VerifyTokenGrpc @Inject constructor(
 
 ): VerifyTokenClient {
 
+    private val className = this::class.simpleName
     override fun verifyToken(token: String): Uni<User?> {
         val request = VerifyTokenRequest.newBuilder().setToken(token).build()
-        return client.verifyToken(request).map { User(id = it.id, name = it.name, email = it.email, password = null) }
+        return client.verifyToken(request)
+            .map { User(id = it.id, name = it.name, email = it.email, password = null) }
+            .onFailure().recoverWithUni  { throwable ->
+                Uni.createFrom().failure(GrpcConnectionException(className, this::verifyToken.name, throwable.message ?: "Unknown"))
+            }
     }
 }

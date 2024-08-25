@@ -2,6 +2,7 @@ package com.coco.application.cqrs.query.getUserLinkStat
 
 import com.coco.application.cqrs.query.base.QueryValidateResult
 import com.coco.application.cqrs.query.base.QueryValidator
+import com.coco.application.exception.QueryValidationException
 import com.coco.infra.client.VerifyTokenClient
 import com.coco.infra.grpc.VerifyTokenGrpc
 import com.coco.infra.restClient.VerifyTokenRestClient
@@ -20,43 +21,34 @@ import org.eclipse.microprofile.rest.client.inject.RestClient
 class GetUserLinkStatValidate @Inject constructor(
     @Named("grpc") private val verifyTokenClient: VerifyTokenClient
 ): QueryValidator<GetUserLinkStatQuery> {
+    private val className = GetUserLinkStatValidate::class.java.simpleName
     override fun validateQuery(query: GetUserLinkStatQuery): Uni<QueryValidateResult> {
-        var isValid = true
-        val message = mutableListOf<String>()
-
         val link = query.shortLink
         // rule: link must not be null
         if (link.isEmpty()) {
-            isValid = false
-            message.add("shortLink must not be empty")
+            return Uni.createFrom().failure(QueryValidationException(className, ValidateMessage.SHORT_LINK_INVALID.name))
         }
 
-        val jwt = query.jwt
+        val token = query.jwt?.token
         // rule: jwt must not be null
-        if (jwt == null) {
-            isValid = false
-            message.add("jwt must not be null")
+        if (token.isNullOrBlank()) {
+            return Uni.createFrom().failure(QueryValidationException(className, ValidateMessage.TOKEN_INVALID.name))
         }
 
-        // rule: token must not be null
-        if (jwt?.token.isNullOrEmpty()) {
-            isValid = false
-            message.add("token must not be null or empty")
-            return Uni.createFrom().item(GetUserLinkStatValidateResult(isValid, message))
-        }
 
         // rule: verify token
-        val token = jwt?.token !!
-        return verifyTokenClient.verifyToken(token).map { payload ->
+        return verifyTokenClient.verifyToken(token).chain { payload ->
             if (payload == null) {
-                isValid = false
-                message.add("token is invalid")
-                GetUserLinkStatValidateResult(isValid, message)
+                Uni.createFrom().failure(QueryValidationException(className, ValidateMessage.TOKEN_INVALID.name))
 
             } else {
-                GetUserLinkStatValidateResult(isValid, message, payload)
+                Uni.createFrom().item(GetUserLinkStatValidateResult(payload))
             }
-
         }
     }
+}
+
+enum class ValidateMessage {
+    TOKEN_INVALID,
+    SHORT_LINK_INVALID
 }

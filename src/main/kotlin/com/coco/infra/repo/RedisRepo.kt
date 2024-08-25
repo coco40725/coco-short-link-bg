@@ -1,8 +1,6 @@
 package com.coco.infra.repo
 
-import com.coco.infra.repo.exception.RedisCacheDeleteFailedException
-import com.coco.infra.repo.exception.RedisCachePopFailedException
-import com.coco.infra.repo.exception.RedisCacheSetFailedException
+import com.coco.infra.exception.RepoException
 import io.quarkus.redis.datasource.ReactiveRedisDataSource
 import io.quarkus.redis.datasource.hash.ReactiveHashCommands
 import io.quarkus.redis.datasource.keys.ReactiveKeyCommands
@@ -12,7 +10,6 @@ import io.smallrye.mutiny.Uni
 import jakarta.annotation.PostConstruct
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
-import kotlin.jvm.Throws
 
 
 /**
@@ -29,6 +26,8 @@ class RedisRepo @Inject constructor(
     private lateinit var hashCmd: ReactiveHashCommands<String, String, String>
     private lateinit var listCmd: ReactiveListCommands<String, String>
 
+    private val className = this::class.simpleName
+
 
     @PostConstruct
     fun init(){
@@ -43,24 +42,46 @@ class RedisRepo @Inject constructor(
     }
 
     fun setHash(key: String, field: String, value: String): Uni<Boolean> {
-        return hashCmd.hset(key, field, value).map {
-            if (!it) throw RedisCacheSetFailedException("Set cache failed. key: $key, field: $field, value: $value")
-            true
+        return hashCmd.hset(key, field, value).chain { it ->
+
+            if (!it) {
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::setHash.name,
+                    "Set cache failed. key: $key, field: $field, value: $value"
+                ))
+            } else {
+                Uni.createFrom().item(true)
+            }
         }
     }
 
     fun updateHash(key: String, field: String, value: String): Uni<Boolean> {
         return hashCmd.hdel(key, field).chain { _ ->
-            hashCmd.hset(key, field, value).map {
-                if (!it) throw RedisCacheSetFailedException("Set cache failed. key: $key, field: $field, value: $value")
-                true
+            hashCmd.hset(key, field, value).chain { it ->
+                if (!it) {
+                    Uni.createFrom().failure(RepoException(
+                        className,
+                        this::updateHash.name,
+                        "Update cache failed. key: $key, field: $field, value: $value"
+                    ))
+                } else {
+                    Uni.createFrom().item(true)
+                }
             }
         }
     }
     fun delHash(key: String, field: String): Uni<Int> {
-        return hashCmd.hdel(key, field).map {
-            if (it == 0) throw RedisCacheDeleteFailedException("Delete cache failed. key: $key, field: $field")
-            it
+        return hashCmd.hdel(key, field).chain { it ->
+            if (it == 0) {
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::delHash.name,
+                    "Delete cache failed. key: $key, field: $field"
+                ))
+            } else {
+                Uni.createFrom().item(it)
+            }
         }
     }
 
@@ -68,11 +89,19 @@ class RedisRepo @Inject constructor(
         return listCmd.lrange(key, 0, -1)
     }
 
-    @Throws(RedisCachePopFailedException::class)
     fun popFirstElementFromList(key: String): Uni<String> {
-        return listCmd.lpop(key).map {
-            if (it == null) throw RedisCachePopFailedException("Pop cache failed. key: $key")
-            it
+        return listCmd.lpop(key).chain { it  ->
+
+            if (it == null) {
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::popFirstElementFromList.name,
+                    "Pop cache failed. key: $key"
+                ))
+            } else {
+                Uni.createFrom().item(it)
+            }
+
         }
     }
     fun addElementToList(key: String, elements: List<String>): Uni<Long>? {

@@ -2,6 +2,10 @@ package com.coco.application.cqrs
 
 import com.coco.application.cqrs.command.base.*
 import com.coco.application.cqrs.query.base.*
+import com.coco.application.exception.CommandHandlerCastException
+import com.coco.application.exception.NoSuchCommandException
+import com.coco.application.exception.NoSuchQueryException
+import com.coco.application.exception.QueryHandlerCastException
 import io.smallrye.mutiny.Uni
 import jakarta.annotation.PostConstruct
 import jakarta.enterprise.context.ApplicationScoped
@@ -42,44 +46,49 @@ class DefaultActionExecutor: ActionExecutor {
         queryValidatorMap = getInstanceMap(queryValidatorInstances)
     }
     override fun <R> executeCommand(command: Command<R>, validateResult: CommandValidateResult?): R {
-        val handlerValue = commandHandlerMap[command::class.java] ?: throw NoSuchCommandException("No such command in commandHandlerMap")
+        val commandName = command::class.java.simpleName
+        val handlerValue = commandHandlerMap[command::class.java] ?: throw NoSuchCommandException(commandName, "No such command in commandHandlerMap")
         try {
             val commandHandler = handlerValue as CommandHandler<R, Command<R>>
             return commandHandler.handle(command, validateResult)
         } catch (e: ClassCastException){
-            throw CommandHandlerCastException("commandHandler cannot cast to CommandHandler<R, Command<R>>")
+            throw CommandHandlerCastException(commandName, "commandHandler cannot cast to CommandHandler<R, Command<R>>")
         }
 
     }
 
     override fun <R> validateCommand(command: Command<R>): Uni<CommandValidateResult> {
-        val validatorValue = commandValidatorMap[command::class.java] ?: throw NoSuchCommandException("No such command in commandValidatorMap")
+        val commandName = command::class.java.simpleName
+        val validatorValue = commandValidatorMap[command::class.java] ?: throw NoSuchCommandException(commandName, "No such command in commandValidatorMap")
         try {
             val commandValidator = validatorValue as CommandValidator<Command<R>>
             return commandValidator.validateCommand(command)
         } catch (e: ClassCastException){
-            throw CommandHandlerCastException("commandValidator cannot cast to CommandValidator<R, Command<R>>")
+            throw CommandHandlerCastException(commandName, "commandValidator cannot cast to CommandValidator<R, Command<R>>")
         }
     }
 
 
     override fun <R> executeQuery(query: Query<R>, validateResult: QueryValidateResult?): R {
-        val handlerValue = queryHandlerMap[query::class.java] ?: throw NoSuchQueryException("No such query in queryHandlerMap")
+        val queryName = query::class.java.simpleName
+        val handlerValue = queryHandlerMap[query::class.java] ?: throw NoSuchQueryException(queryName, "No such query in queryHandlerMap")
         try {
             val queryHandler = handlerValue as QueryHandler<R, Query<R>>
             return queryHandler.handle(query, validateResult)
         } catch (e: ClassCastException){
-            throw QueryHandlerCastException("queryHandler cannot cast to QueryHandler<Query<*>>")
+            throw QueryHandlerCastException(queryName, "queryHandler cannot cast to QueryHandler<Query<*>>")
         }
     }
 
     override fun <R> validateQuery(query: Query<R>): Uni<QueryValidateResult> {
-        val validatorValue = queryValidatorMap[query::class.java] ?: throw NoSuchQueryException("No such command in queryValidatorMap")
+        val queryName = query::class.java.simpleName
+
+        val validatorValue = queryValidatorMap[query::class.java] ?: throw NoSuchQueryException(queryName, "No such query in queryValidatorMap")
         try {
             val queryValidator = validatorValue as QueryValidator<Query<R>>
             return queryValidator.validateQuery(query)
         } catch (e: ClassCastException){
-            throw QueryHandlerCastException("queryValidator cannot cast to QueryValidator<Query<*>>")
+            throw QueryHandlerCastException(queryName, "queryValidator cannot cast to QueryValidator<Query<*>>")
         }
     }
 

@@ -2,6 +2,7 @@ package com.coco.application.cqrs.command.enabledLinkInfo
 
 import com.coco.application.cqrs.command.base.CommandValidateResult
 import com.coco.application.cqrs.command.base.CommandValidator
+import com.coco.application.exception.CommandValidationException
 import com.coco.application.service.LinkManagementService
 import com.coco.infra.client.VerifyTokenClient
 import com.coco.infra.restClient.VerifyTokenRestClient
@@ -22,50 +23,48 @@ class EnabledLinkInfoValidate @Inject constructor(
     private val linkManagementService: LinkManagementService
 
 ): CommandValidator<EnabledLinkInfoCommand> {
-    override fun validateCommand(command: EnabledLinkInfoCommand): Uni<CommandValidateResult> {
-        var isValid = true
-        val message = mutableListOf<String>()
 
+    private val className = EnabledLinkInfoValidate::class.java.simpleName
+
+    override fun validateCommand(command: EnabledLinkInfoCommand): Uni<CommandValidateResult> {
         // rule: id should not be null and should be a valid ObjectId
         val id = command.id
         if (!ObjectId.isValid(id)) {
-            isValid = false
-            message.add("id is invalid")
+            return Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.ID_INVALID.name))
         }
 
 
         //  rule: jwt should not be null
-        val jwt = command.jwt
-        if (jwt == null) {
-            isValid = false
-            message.add("jwt is invalid")
-            return Uni.createFrom().item(CommandValidateResult(isValid, message))
+        val token = command.jwt?.token
+        if (token.isNullOrBlank()) {
+            return Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.TOKEN_INVALID.name))
         }
 
         // rule: expireDate should be null or after now
         val checkExpireUni = linkManagementService.checkShortLinkIsExpired(id)
 
         // rule: verify token
-        val token = jwt.token
-        val verifyTokenUni = if (token != null) {
-            verifyTokenClient.verifyToken(token)
-        } else {
-            Uni.createFrom().nullItem()
-        }
+        val verifyTokenUni = verifyTokenClient.verifyToken(token)
+
 
         return Uni.combine().all().unis(
             checkExpireUni,
             verifyTokenUni
-        ).with { expire, payload ->
+        ).withUni { expire, payload ->
             if (expire != true) {
-                isValid = false
-                message.add("short link is expired")
+                Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.SHORT_LINK_EXPIRED.name))
+            } else if (payload == null ) {
+                Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.ID_INVALID.name))
+
+            } else {
+                Uni.createFrom().item(EnabledLinkValidateResult(payload))
             }
-            if (payload == null && token != null) {
-                isValid = false
-                message.add("token is invalid")
-            }
-            EnabledLinkValidateResult(isValid, message, payload)
         }
     }
+}
+
+enum class ValidateMessage {
+    ID_INVALID,
+    TOKEN_INVALID,
+    SHORT_LINK_EXPIRED
 }
