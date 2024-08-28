@@ -1,18 +1,23 @@
 package com.coco.application.service
 
 import com.coco.application.exception.ApplicationException
+import com.coco.domain.model.CompensationActions
+import com.coco.domain.model.ErrorLog
 import com.coco.domain.model.LinkInfo
 import com.coco.domain.service.linkInfo.LinkInfoSvc
 import com.coco.infra.constant.RedisConstant
-import com.coco.infra.exception.RepoException
+import com.coco.infra.repo.ErrorLogRepo
 import com.coco.infra.repo.LinkInfoExpireTTLRepo
 import com.coco.infra.repo.LinkInfoRepo
 import com.coco.infra.repo.RedisRepo
 import com.coco.infra.util.Log
+import io.quarkus.mongodb.reactive.ReactiveMongoClient
 import io.smallrye.mutiny.Uni
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
+import org.bson.Document
 import org.bson.types.ObjectId
+import org.reactivestreams.FlowAdapters
 import java.util.*
 
 /**
@@ -25,7 +30,9 @@ class LinkManagementService @Inject constructor(
     private val linkInfoRepo: LinkInfoRepo,
     private val redisRepo: RedisRepo,
     private val linkInfoExpireTTLRepo: LinkInfoExpireTTLRepo,
-    private val linkInfoSvc: LinkInfoSvc
+    private val linkInfoSvc: LinkInfoSvc,
+    private val mongoClient: ReactiveMongoClient,
+    private val compensationService: CompensationService
 ) {
     private val whiteShortLinkKey = RedisConstant.WHITE_SHORT_LINK_KEY
     private val originalLinkField = RedisConstant.ORIGINAL_LINK_FIELD
@@ -44,7 +51,7 @@ class LinkManagementService @Inject constructor(
 
 
     private fun getFromDBAndSetInCache(shortLink: String): Uni<String?> {
-        return linkInfoRepo.getOneByEnableShortLink(shortLink).chain { info ->
+        return linkInfoRepo.getOneByEnableShortLink(null, shortLink).chain { info ->
             Log.i(LinkManagementService::class, "get from db: $info")
             if (info?.originalLink != null) {
                 redisRepo.setHash(shortLink, originalLinkField, info.originalLink !!)
@@ -57,26 +64,46 @@ class LinkManagementService @Inject constructor(
     }
 
 
-
+    /**
+     *  1. mongodb transaction: insert link info + insert ttl (if needed)
+     *  2. redis
+     */
     fun addLinkInfoLog(info: LinkInfo): Uni<LinkInfo?> {
-        val redisUni = redisRepo.setHash(info.shortLink!!,  originalLinkField, info.originalLink!!)
-        val linkInfoUni = linkInfoRepo.insertOne(info).chain { insertedInfo ->
-            if (insertedInfo != null) {
-                when (insertedInfo.expirationDate) {
-                    null -> Uni.createFrom().item(insertedInfo)
-                    else -> linkInfoExpireTTLRepo.createOrUpdate(insertedInfo.id!!, insertedInfo.shortLink!!, insertedInfo.expirationDate!!).map { insertedInfo  }
+        info.id = ObjectId()
+        val addInMongodbUni = mongoClient.startSession().chain { session ->
+            session.startTransaction()
+            try {
+                linkInfoRepo.insertOne(session, info).chain { insertedInfo ->
+                    when (insertedInfo.expirationDate) {
+                        null -> Uni.createFrom().item(insertedInfo)
+                        else -> linkInfoExpireTTLRepo.createOrUpdate(null, insertedInfo.id!!, insertedInfo.shortLink!!, insertedInfo.expirationDate!!).map { insertedInfo  }
+                    }
+                }.chain { _ ->
+                    val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
+                    Uni.createFrom().publisher(publisher).map { info }
                 }
-            } else {
-                Uni.createFrom().nullItem()
+            } catch (e: Exception) {
+                val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
+                Uni.createFrom().publisher(publisher).map { null }
             }
         }
 
-        return Uni.combine().all().unis(redisUni, linkInfoUni)
-            .with { _, dbResult -> dbResult }
-            .onFailure(RepoException::class.java).call { _ ->
-                redisRepo.delHash(info.shortLink!!, originalLinkField)
+        val redisUni = redisRepo.setHash(info.shortLink!!,  originalLinkField, info.originalLink!!)
+
+        return addInMongodbUni.chain { it ->
+            if (it == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::addLinkInfoLog.name,
+                    message = "add link info failed")
+                )
+            } else {
+                redisUni.map { info }
             }
+        }
     }
+
+
 
     fun disableLinkInfo(id: String): Uni<Boolean> {
         val disabledInfo = LinkInfo(
@@ -90,11 +117,42 @@ class LinkManagementService @Inject constructor(
             enabled = false
         )
 
-        return linkInfoRepo.updateOne(disabledInfo).chain { updatedInfo ->
-            val shortLink = updatedInfo.shortLink !!
-            redisRepo.delHash(shortLink, originalLinkField).map { it > 0 }
+        val compensationActions = mutableListOf<CompensationActions>()
+
+
+        // get original info
+        val getOriginalUni =  linkInfoRepo.getOneById(null, id).memoize().indefinitely()
+
+        // mongodb
+        val mongodbUni = getOriginalUni.chain { originalInfo ->
+            compensationActions.add(CompensationActions(
+                functionName = "linkInfoRepo.updateOne",
+                params = listOf(linkInfoRepo.toDocument(originalInfo)!!),
+                action = { linkInfoRepo.updateOne(null, originalInfo !!) }
+            ))
+            linkInfoRepo.updateOne(null, disabledInfo)
+        }
+
+        // redis
+        val redisUni = getOriginalUni.chain { originalInfo ->
+            redisRepo.delHash(disabledInfo.shortLink!!).map { it ->
+                compensationActions.add(CompensationActions(
+                    functionName = "redisRepo.setHash",
+                    params = listOf(Document(mapOf("shortLink" to disabledInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
+                    action = { redisRepo.setHash(originalInfo?.shortLink!!, originalLinkField, originalInfo?.originalLink !!) }
+                ))
+                it > 0
+            }
+        }
+
+        return mongodbUni.chain { _ ->
+            redisUni
+        }.onFailure().recoverWithItem { _ ->
+            compensationService.executeCompensation(compensationActions)
+            false
         }
     }
+
 
     fun enabledLinkInfo(id: String): Uni<Boolean> {
         val enabledInfo = LinkInfo(
@@ -108,21 +166,45 @@ class LinkManagementService @Inject constructor(
             enabled = true
         )
 
-        return linkInfoRepo.updateOne(enabledInfo).chain { updatedInfo ->
-            if (updatedInfo != null) {
-                val redisEnabledUni = redisRepo.setHash(updatedInfo.shortLink!!,  originalLinkField, updatedInfo.originalLink!!).map { it }
-                val ttlUni = when (updatedInfo.expirationDate) {
-                    null -> Uni.createFrom().item(true)
-                    else -> linkInfoExpireTTLRepo.createOrUpdate(updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate !!).map { it != null }
-                }
+        // get original info
+        val getOriginalUni =  linkInfoRepo.getOneById(null, id).memoize().indefinitely()
 
-                Uni.combine().all().unis(redisEnabledUni, ttlUni).with { redisResult, ttlResult ->
-                    redisResult && ttlResult
+        // mongodb
+        val mongodbUni = mongoClient.startSession().chain { session ->
+            session.startTransaction()
+            try {
+                linkInfoRepo.updateOne(null, enabledInfo).chain { updatedInfo ->
+                    when (updatedInfo.expirationDate) {
+                        null -> Uni.createFrom().item(updatedInfo)
+                        else -> linkInfoExpireTTLRepo.createOrUpdate(null, updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate !!).map { updatedInfo }
+                    }
+                }.chain { updatedInfo ->
+                    val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
+                    Uni.createFrom().publisher(publisher).map { updatedInfo }
                 }
-            } else {
-                Uni.createFrom().item(false)
+            } catch (e: Exception) {
+                val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
+                Uni.createFrom().publisher(publisher).map { null }
             }
         }
+
+        // redis
+        val redisUni =  getOriginalUni.chain { originalInfo ->
+            redisRepo.setHash(originalInfo?.shortLink!!,  originalLinkField, originalInfo?.originalLink!!).map { it }
+        }
+
+        return mongodbUni.chain { result ->
+            if (result == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::addLinkInfoLog.name,
+                    message = "enable link info failed")
+                )
+            } else {
+                redisUni
+            }
+        }
+
     }
 
     fun changeOriginLink(id: String, originLink: String): Uni<Boolean> {
@@ -136,14 +218,43 @@ class LinkManagementService @Inject constructor(
             createDate = null,
             enabled = null
         )
-        return linkInfoRepo.updateOne(updatedInfo).chain { updatedInfo ->
-            redisRepo.updateHash(updatedInfo.shortLink!!,  originalLinkField, updatedInfo.originalLink!!).map { it }
+        val compensationActions = mutableListOf<CompensationActions>()
+
+        // get original info
+        val getOriginalUni =  linkInfoRepo.getOneById(null, id).memoize().indefinitely()
+
+        // mongodb
+        val mongodbUni = getOriginalUni.chain { originalInfo ->
+            compensationActions.add(CompensationActions(
+                functionName = "linkInfoRepo.updateOne",
+                params = listOf(linkInfoRepo.toDocument(originalInfo)!!),
+                action = { linkInfoRepo.updateOne(null, originalInfo !!) }
+            ))
+            linkInfoRepo.updateOne(null, updatedInfo)
+        }
+
+        // redis
+        val redisUni = getOriginalUni.chain { originalInfo ->
+            redisRepo.updateHash(originalInfo?.shortLink!!,  originalLinkField, updatedInfo.originalLink!!).map {
+                compensationActions.add(CompensationActions(
+                    functionName = "redisRepo.updateHash",
+                    params = listOf(Document(mapOf("shortLink" to originalInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
+                    action = { redisRepo.updateHash(originalInfo.shortLink!!, originalLinkField, originalInfo.originalLink !!) }
+                ))
+            }
+        }
+
+        return mongodbUni.chain { _ ->
+            redisUni
+        }.onFailure().recoverWithItem { _ ->
+            compensationService.executeCompensation(compensationActions)
+            false
         }
     }
 
     fun changeExpireDate(id: String, expireDate: Date?): Uni<Boolean> {
         return if (expireDate == null) {
-            linkInfoRepo.removeExpireDate(ObjectId(id))
+            linkInfoRepo.removeExpireDate(null, ObjectId(id))
         } else {
             val updatedInfo = LinkInfo(
                 id = ObjectId(id),
@@ -156,36 +267,54 @@ class LinkManagementService @Inject constructor(
                 enabled = null
             )
 
-            linkInfoRepo.updateOne(updatedInfo).chain { updatedInfo ->
-                if (updatedInfo != null) {
-                    linkInfoExpireTTLRepo.createOrUpdate(updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate!!).map { it != null }
-                } else {
-                    Uni.createFrom().item(false)
+            val mongodbUni = mongoClient.startSession().chain { session ->
+                session.startTransaction()
+                try {
+                    linkInfoRepo.updateOne(session, updatedInfo).chain { updatedInfo ->
+                        linkInfoExpireTTLRepo.createOrUpdate(null, updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate!!)
+                    }.chain { _ ->
+                        val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
+                        Uni.createFrom().publisher(publisher).map { true }
+                    }
+
+                } catch (e: Exception) {
+                    val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
+                    Uni.createFrom().publisher(publisher).map { false }
                 }
+
             }
+
+            mongodbUni
         }
 
     }
 
     fun updateLinkInfo(info: LinkInfo): Uni<LinkInfo?> {
-        return linkInfoRepo.updateOne(info).chain { updatedInfo ->
-            if (updatedInfo != null) {
-                when (info.expirationDate) {
-                    null -> Uni.createFrom().item(updatedInfo)
-                    else -> linkInfoExpireTTLRepo.createOrUpdate(updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate!!).map { updatedInfo  }
+        return mongoClient.startSession().chain { session ->
+            session.startTransaction()
+            try {
+                linkInfoRepo.updateOne(null, info).chain { updatedInfo ->
+                    when (info.expirationDate) {
+                        null -> Uni.createFrom().item(updatedInfo)
+                        else -> linkInfoExpireTTLRepo.createOrUpdate(null, updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate!!).map { updatedInfo  }
+                    }
+                }.chain { updatedInfo ->
+                    val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
+                    Uni.createFrom().publisher(publisher).map { updatedInfo }
                 }
-            } else {
-                Uni.createFrom().nullItem()
+            } catch (e: Exception){
+                val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
+                Uni.createFrom().publisher(publisher).map { null }
             }
         }
     }
 
     fun checkShortLinkIsExist(shortLink: String): Uni<Boolean> {
-        return linkInfoRepo.getOneByShortLink(shortLink).map { it != null }
+        return linkInfoRepo.getOneByShortLink(null, shortLink).map { it != null }
 
     }
     fun checkShortLinkIsExpired(id: String): Uni<Boolean> {
-        return linkInfoRepo.getOneById(id).chain { it ->
+        return linkInfoRepo.getOneById(null, id).chain { it ->
             if (it == null) {
                 Uni.createFrom().failure(ApplicationException(
                     className = this::class.simpleName,
@@ -211,7 +340,7 @@ class LinkManagementService @Inject constructor(
 
     fun generateWhiteShortLinks(size: Int): Uni<Long> {
          val whiteList = linkInfoSvc.generateShortUrl(size * 2)
-         return linkInfoRepo.checkShortLinksExist(whiteList).chain { existShortLinks ->
+         return linkInfoRepo.checkShortLinksExist(null, whiteList).chain { existShortLinks ->
              val availableShortLinks = whiteList.filter { !existShortLinks.contains(it) }.toMutableList()
              if (availableShortLinks.size < size) {
                 while (availableShortLinks.size < size) {

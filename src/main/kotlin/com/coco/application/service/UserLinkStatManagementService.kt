@@ -22,7 +22,7 @@ class UserLinkStatManagementService @Inject constructor(
 ) {
 
     fun getUserLinkInfo(userId: String): Uni<List<LinkInfo>> {
-        return linkInfoRepo.getManyByUserId(userId)
+        return linkInfoRepo.getManyByUserId(null, userId)
     }
 
     fun getQueryResult(shortLink: String) {
