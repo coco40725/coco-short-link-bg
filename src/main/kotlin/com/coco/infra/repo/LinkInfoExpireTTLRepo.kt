@@ -2,6 +2,7 @@ package com.coco.infra.repo
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.mongodb.client.model.*
+import com.mongodb.reactivestreams.client.ClientSession
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
 import io.smallrye.mutiny.Uni
 import jakarta.annotation.PostConstruct
@@ -24,6 +25,10 @@ class LinkInfoExpireTTLRepo @Inject constructor(
         .getDatabase("short-link-db")
         .getCollection("LinkInfoExpireTTL")
 
+    private val readCol = mongoClient
+        .getDatabase("short-link-db")
+        .getCollection("LinkInfoExpireTTL")
+
 
     private val expireTTLExpire = IndexOptions().name("expire")
         .expireAfter(0L, TimeUnit.SECONDS)
@@ -34,21 +39,64 @@ class LinkInfoExpireTTLRepo @Inject constructor(
         writeCol.createIndex(Indexes.ascending("expireDate"), expireTTLExpire).subscribe().with { _ -> }
     }
 
+    fun findOne(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String): Uni<Document> {
+        val modifiedId = mapOf("linkInfoId" to linkInfoId.toString(), "shortLink" to shortLink)
+        val json = Document(modifiedId).toJson()
+        return readCol.find(session, Filters.eq("_id", json)).collect().first()
 
-    fun createOrUpdate(linkInfoId: ObjectId, shortLink: String, expireDate: Date): Uni<Document> {
+    }
+
+    fun deleteOrUpdateOne(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String, expireDate: Date): Uni<Document> {
         val updates = listOf(
             Updates.set("expireDate", expireDate)
         )
 
         val modifiedId = mapOf("linkInfoId" to linkInfoId.toString(), "shortLink" to shortLink)
         val json = Document(modifiedId).toJson()
-        return writeCol.findOneAndUpdate(
-            Filters.eq("_id", json),
-            updates,
-            FindOneAndUpdateOptions()
-                .returnDocument(ReturnDocument.AFTER)
-                .upsert(true)
+        return if (session != null) {
+            writeCol.findOneAndUpdate(
+                session,
+                Filters.eq("_id", json),
+                updates,
+                FindOneAndUpdateOptions()
+                    .returnDocument(ReturnDocument.AFTER)
+                    .upsert(false)
+            )
+        } else {
+            writeCol.findOneAndUpdate(
+                Filters.eq("_id", json),
+                updates,
+                FindOneAndUpdateOptions()
+                    .returnDocument(ReturnDocument.AFTER)
+                    .upsert(false)
+            )
+        }
+    }
+
+    fun createOrUpdate(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String, expireDate: Date): Uni<Document> {
+        val updates = listOf(
+            Updates.set("expireDate", expireDate)
         )
 
+        val modifiedId = mapOf("linkInfoId" to linkInfoId.toString(), "shortLink" to shortLink)
+        val json = Document(modifiedId).toJson()
+        return if (session != null) {
+            writeCol.findOneAndUpdate(
+                session,
+                Filters.eq("_id", json),
+                updates,
+                FindOneAndUpdateOptions()
+                    .returnDocument(ReturnDocument.AFTER)
+                    .upsert(true)
+            )
+        } else {
+            writeCol.findOneAndUpdate(
+                Filters.eq("_id", json),
+                updates,
+                FindOneAndUpdateOptions()
+                    .returnDocument(ReturnDocument.AFTER)
+                    .upsert(true)
+            )
+        }
     }
 }

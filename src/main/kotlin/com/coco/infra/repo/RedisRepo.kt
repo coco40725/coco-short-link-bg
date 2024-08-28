@@ -71,13 +71,13 @@ class RedisRepo @Inject constructor(
             }
         }
     }
-    fun delHash(key: String, field: String): Uni<Int> {
-        return hashCmd.hdel(key, field).chain { it ->
+    fun delHash(key: String): Uni<Int> {
+        return hashCmd.hdel(key).chain { it ->
             if (it == 0) {
                 Uni.createFrom().failure(RepoException(
                     className,
                     this::delHash.name,
-                    "Delete cache failed. key: $key, field: $field"
+                    "Delete cache failed. key: $key"
                 ))
             } else {
                 Uni.createFrom().item(it)

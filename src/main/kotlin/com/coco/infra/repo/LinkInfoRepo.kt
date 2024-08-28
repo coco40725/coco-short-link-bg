@@ -4,6 +4,7 @@ import com.coco.domain.model.LinkInfo
 import com.coco.infra.exception.RepoException
 import com.mongodb.ReadPreference
 import com.mongodb.client.model.*
+import com.mongodb.reactivestreams.client.ClientSession
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
 import io.smallrye.mutiny.Uni
 import jakarta.annotation.PostConstruct
@@ -53,7 +54,7 @@ class LinkInfoRepo @Inject constructor(
         return updates
     }
 
-    private fun toDocument(info: LinkInfo?): Document?{
+     fun toDocument(info: LinkInfo?): Document?{
         if (info == null) return null
         val mapData = mutableMapOf<String, Any>()
         info.id?.let { mapData["_id"] = it }
@@ -64,6 +65,7 @@ class LinkInfoRepo @Inject constructor(
         info.lastUpdateDate?.let { mapData["lastUpdateDate"] = it }
         info.createDate?.let { mapData["createDate"] = it }
         info.enabled?.let { mapData["enabled"] = it }
+
         return Document(mapData)
     }
 
@@ -82,47 +84,98 @@ class LinkInfoRepo @Inject constructor(
     }
 
 
-    fun getOneByEnableShortLink(shortLink: String): Uni<LinkInfo?> {
-        return readCol.find(
-            Filters.and(
-                Filters.eq("shortLink", shortLink),
-                Filters.eq("enabled", true)
+    fun getOneByEnableShortLink(session: ClientSession? = null , shortLink: String): Uni<LinkInfo?> {
+        val colOperation = if (session != null) {
+            readCol.find(
+                session,
+                Filters.and(
+                    Filters.eq("shortLink", shortLink),
+                    Filters.eq("enabled", true)
+                )
             )
-        ).collect().asList().map { toObject(it.firstOrNull()) }
+        } else {
+            readCol.find(
+                Filters.and(
+                    Filters.eq("shortLink", shortLink),
+                    Filters.eq("enabled", true)
+                )
+            )
+        }
+        return colOperation.collect().asList().map { toObject(it.firstOrNull()) }
     }
 
-    fun getOneByShortLink(shortLink: String): Uni<LinkInfo?> {
-        return readCol.find(Filters.eq("shortLink", shortLink)
-        ).collect().asList().map { toObject(it.firstOrNull()) }
+    fun getOneByShortLink(session: ClientSession? = null, shortLink: String): Uni<LinkInfo?> {
+        val colOperation = if (session != null) {
+            readCol.find(
+                session,
+                Filters.eq("shortLink", shortLink)
+            )
+        } else {
+            readCol.find(
+                Filters.eq("shortLink", shortLink)
+            )
+        }
+
+        return colOperation.collect().asList().map { toObject(it.firstOrNull()) }
     }
 
 
-    fun getOneById(id: String): Uni<LinkInfo?> {
-        return readCol.find(Filters.eq("_id", ObjectId(id)))
-            .collect().first().map { toObject(it) }
+    fun getOneById(session: ClientSession? = null, id: String): Uni<LinkInfo?> {
+        val colOperation = if (session != null) {
+            readCol.find(
+                session,
+                Filters.eq("_id", ObjectId(id)))
+        } else {
+            readCol.find(
+                Filters.eq("_id", ObjectId(id)))
+        }
+        return colOperation.collect().first().map { toObject(it) }
     }
 
-    fun checkShortLinksExist(shortLinks: List<String>): Uni<List<String>> {
-        return readCol.find(
-            Filters.`in`("shortLink", shortLinks)
-        ).collect().asList().map { existDoc ->
+    fun checkShortLinksExist(session: ClientSession? = null, shortLinks: List<String>): Uni<List<String>> {
+        val colOperation = if (session != null) {
+            readCol.find(
+                session,
+                Filters.`in`("shortLink", shortLinks)
+            )
+        } else {
+            readCol.find(
+                Filters.`in`("shortLink", shortLinks)
+            )
+        }
+
+        return colOperation.collect().asList().map { existDoc ->
             val existShortLinks = existDoc.map { it.getString("shortLink") }
             existShortLinks
         }
     }
 
-    fun getManyByUserId(userId: String): Uni<List<LinkInfo>> {
-        return readCol.find(
-            Filters.eq("userId", userId)
-        ).collect().asList().map { docList  ->
+    fun getManyByUserId(session: ClientSession? = null, userId: String): Uni<List<LinkInfo>> {
+        val colOperation = if (session != null) {
+            readCol.find(
+                session,
+                Filters.eq("userId", userId)
+            )
+        } else {
+            readCol.find(
+                Filters.eq("userId", userId)
+            )
+        }
+        return colOperation.collect().asList().map { docList  ->
             docList.mapNotNull { toObject(it) }
         }
 
     }
 
-    fun insertOne(info: LinkInfo): Uni<LinkInfo?> {
+    fun insertOne(session: ClientSession? = null, info: LinkInfo): Uni<LinkInfo> {
         val document = toDocument(info)
-        return writeCol.insertOne(document).chain { it ->
+        val colOperation = if (session != null) {
+            writeCol.insertOne(session, document)
+        } else {
+            writeCol.insertOne(document)
+        }
+
+        return colOperation.chain { it ->
             if (it.wasAcknowledged()) {
                 val insertId = document?.getObjectId("_id")
                 info.id = insertId
@@ -137,17 +190,50 @@ class LinkInfoRepo @Inject constructor(
         }
     }
 
-    fun updateOne(linkInfo: LinkInfo): Uni<LinkInfo> {
+
+    fun deleteOne(session: ClientSession? = null, id: ObjectId): Uni<ObjectId> {
+        val colOperation = if (session != null) {
+            writeCol.deleteOne(session, Filters.eq("_id", id))
+        } else {
+            writeCol.deleteOne(Filters.eq("_id", id))
+        }
+        return colOperation
+            .chain { it ->
+                if (it.wasAcknowledged()) {
+                    Uni.createFrom().item(id)
+                } else {
+                    Uni.createFrom().failure(RepoException(
+                        className,
+                        this::insertOne.name,
+                        "Failed to delete linkInfo_id: $id"
+                    ))
+                }
+            }
+    }
+
+    fun updateOne(session: ClientSession? = null,linkInfo: LinkInfo): Uni<LinkInfo> {
         val id = linkInfo.id
         val update = createUpdates(linkInfo)
+        val colOperation = if (session != null) {
+            writeCol.findOneAndUpdate(
+                session,
+                Filters.eq("_id", id),
+                update,
+                FindOneAndUpdateOptions()
+                    .upsert(false)
+                    .returnDocument(ReturnDocument.AFTER)
+            )
+        } else {
+            writeCol.findOneAndUpdate(
+                Filters.eq("_id", id),
+                update,
+                FindOneAndUpdateOptions()
+                    .upsert(false)
+                    .returnDocument(ReturnDocument.AFTER)
+            )
+        }
 
-        return writeCol.findOneAndUpdate(
-            Filters.eq("_id", id),
-            update,
-            FindOneAndUpdateOptions()
-                .upsert(false)
-                .returnDocument(ReturnDocument.AFTER)
-        ).chain { it ->
+        return colOperation.chain { it ->
             if (it == null) {
                 Uni.createFrom().failure(RepoException(
                     className,
@@ -161,12 +247,21 @@ class LinkInfoRepo @Inject constructor(
         }
     }
 
-    fun removeExpireDate(id: ObjectId): Uni<Boolean> {
+    fun removeExpireDate(session: ClientSession? = null, id: ObjectId): Uni<Boolean> {
         val update = Updates.unset("expirationDate")
-        return writeCol.updateOne(
-            Filters.eq("_id", id),
-            update
-        ).chain { it ->
+        val colOperation = if (session != null) {
+            writeCol.updateOne(
+                session,
+                Filters.eq("_id", id),
+                update
+            )
+        } else {
+            writeCol.updateOne(
+                Filters.eq("_id", id),
+                update
+            )
+        }
+        return colOperation.chain { it ->
             if (!it.wasAcknowledged()) {
                 Uni.createFrom().failure(RepoException(
                     className,
