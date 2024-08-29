@@ -34,17 +34,13 @@ class LinkInfoSvc @Inject constructor(
 
     fun isOriginalLinkFormatValid(originalLink: String): Boolean {
         var isValid = true
-        // rule 1: original link should not be empty
-        if (originalLink.isEmpty()) {
-            isValid = false
-        }
 
-        // rule 2: original link should less than 500  characters
+        // rule: original link should less than 500  characters
         if (originalLink.length > 500 ) {
             isValid = false
         }
 
-        // rule 3: original link should be a valid  url
+        // rule: original link should be a valid  url
         if (!isUrlValid(originalLink)) {
             isValid = false
         }
@@ -61,8 +57,12 @@ class LinkInfoSvc @Inject constructor(
 
     private fun isUrlValid(url: String): Boolean {
         return try {
-            URI.create(url)
-            true
+            if (url.isBlank()) {
+                 false
+            } else {
+                URI.create(url)
+                true
+            }
         } catch (e: Exception) {
             false
         }
