@@ -17,6 +17,6 @@ class DisabledLinkInfoHandler @Inject constructor(
 
 ): CommandHandler<Uni<Boolean>, DisabledLinkInfoCommand> {
     override fun handle(command: DisabledLinkInfoCommand, validateResult: CommandValidateResult?): Uni<Boolean> {
-        return linkManagementService.disableLinkInfo(command.id).map { it != null }
+        return linkManagementService.disableLinkInfo(command.id).map { it == true }
     }
 }

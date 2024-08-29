@@ -135,21 +135,20 @@ class LinkManagementService @Inject constructor(
 
         // redis
         val redisUni = getOriginalUni.chain { originalInfo ->
-            redisRepo.delKey(disabledInfo.shortLink!!).map { it ->
+            redisRepo.delKey(originalInfo?.shortLink!!).map { it ->
                 compensationActions.add(CompensationActions(
                     functionName = "redisRepo.setHash",
                     params = listOf(Document(mapOf("shortLink" to disabledInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
-                    action = { redisRepo.setHash(originalInfo?.shortLink!!, originalLinkField, originalInfo?.originalLink !!) }
+                    action = { redisRepo.setHash(originalInfo.shortLink!!, originalLinkField, originalInfo.originalLink !!) }
                 ))
-                it > 0
+                true
             }
         }
 
-        return mongodbUni.chain { _ ->
+        return mongodbUni.chain { e ->
             redisUni
-        }.onFailure().recoverWithItem { _ ->
+        }.onFailure().invoke { e ->
             compensationService.executeCompensation(compensationActions)
-            false
         }
     }
 
@@ -246,9 +245,9 @@ class LinkManagementService @Inject constructor(
 
         return mongodbUni.chain { _ ->
             redisUni
-        }.onFailure().recoverWithItem { _ ->
+        }.onFailure().invoke { e ->
+            Log.i(LinkManagementService::class, "change link info failed: $e")
             compensationService.executeCompensation(compensationActions)
-            false
         }
     }
 
