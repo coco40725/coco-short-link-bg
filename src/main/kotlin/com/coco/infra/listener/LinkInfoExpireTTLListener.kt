@@ -64,7 +64,7 @@ class LinkInfoExpireTTLListener @Inject constructor(
         val disableLinkInfoUni= linkInfoRepo.updateOne(null, updatedLinkInfo)
 
         // delete cache
-        val deleteCacheUni = redisRepo.delHash(shortLink)
+        val deleteCacheUni = redisRepo.delKey(shortLink)
 
         return checkExpireUni.chain { isExpired ->
             if (isExpired) {

@@ -21,7 +21,7 @@ import jakarta.inject.Inject
 class RedisRepo @Inject constructor(
    val redisDS: ReactiveRedisDataSource
 ){
-    private val keys: ReactiveKeyCommands<String>? = null
+    private lateinit var keyCmd: ReactiveKeyCommands<String>
     private lateinit var strCmd: ReactiveValueCommands<String, String>
     private lateinit var hashCmd: ReactiveHashCommands<String, String, String>
     private lateinit var listCmd: ReactiveListCommands<String, String>
@@ -34,6 +34,7 @@ class RedisRepo @Inject constructor(
         strCmd = redisDS.value(String::class.java)
         hashCmd = redisDS.hash(String::class.java)
         listCmd = redisDS.list(String::class.java)
+        keyCmd = redisDS.key()
     }
 
 
@@ -71,12 +72,12 @@ class RedisRepo @Inject constructor(
             }
         }
     }
-    fun delHash(key: String): Uni<Int> {
-        return hashCmd.hdel(key).chain { it ->
+    fun delKey(key: String): Uni<Int> {
+        return keyCmd.del(key).chain { it ->
             if (it == 0) {
                 Uni.createFrom().failure(RepoException(
                     className,
-                    this::delHash.name,
+                    this::delKey.name,
                     "Delete cache failed. key: $key"
                 ))
             } else {

@@ -135,7 +135,7 @@ class LinkManagementService @Inject constructor(
 
         // redis
         val redisUni = getOriginalUni.chain { originalInfo ->
-            redisRepo.delHash(disabledInfo.shortLink!!).map { it ->
+            redisRepo.delKey(disabledInfo.shortLink!!).map { it ->
                 compensationActions.add(CompensationActions(
                     functionName = "redisRepo.setHash",
                     params = listOf(Document(mapOf("shortLink" to disabledInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
