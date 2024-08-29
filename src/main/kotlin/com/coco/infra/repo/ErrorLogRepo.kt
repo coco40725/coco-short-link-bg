@@ -16,7 +16,7 @@ class ErrorLogRepo @Inject constructor(
     private val mongoClient: ReactiveMongoClient
 ) {
     private val collection = mongoClient
-        .getDatabase("test")
+        .getDatabase("short-link-db")
         .getCollection("ErrorLogs", ErrorLog::class.java)
 
 
