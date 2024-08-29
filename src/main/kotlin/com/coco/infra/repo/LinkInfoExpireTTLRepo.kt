@@ -1,6 +1,5 @@
 package com.coco.infra.repo
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.mongodb.client.model.*
 import com.mongodb.reactivestreams.client.ClientSession
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
@@ -39,39 +38,17 @@ class LinkInfoExpireTTLRepo @Inject constructor(
         writeCol.createIndex(Indexes.ascending("expireDate"), expireTTLExpire).subscribe().with { _ -> }
     }
 
-    fun findOne(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String): Uni<Document> {
-        val modifiedId = mapOf("linkInfoId" to linkInfoId.toString(), "shortLink" to shortLink)
-        val json = Document(modifiedId).toJson()
-        return readCol.find(session, Filters.eq("_id", json)).collect().first()
 
-    }
-
-    fun deleteOrUpdateOne(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String, expireDate: Date): Uni<Document> {
-        val updates = listOf(
-            Updates.set("expireDate", expireDate)
-        )
-
+    fun findOne(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String): Uni<Document?> {
         val modifiedId = mapOf("linkInfoId" to linkInfoId.toString(), "shortLink" to shortLink)
         val json = Document(modifiedId).toJson()
         return if (session != null) {
-            writeCol.findOneAndUpdate(
-                session,
-                Filters.eq("_id", json),
-                updates,
-                FindOneAndUpdateOptions()
-                    .returnDocument(ReturnDocument.AFTER)
-                    .upsert(false)
-            )
+            readCol.find(session, Filters.eq("_id", json)).collect().first()
         } else {
-            writeCol.findOneAndUpdate(
-                Filters.eq("_id", json),
-                updates,
-                FindOneAndUpdateOptions()
-                    .returnDocument(ReturnDocument.AFTER)
-                    .upsert(false)
-            )
+            readCol.find(Filters.eq("_id", json)).collect().first()
         }
     }
+
 
     fun createOrUpdate(session: ClientSession? = null, linkInfoId: ObjectId, shortLink: String, expireDate: Date): Uni<Document> {
         val updates = listOf(
