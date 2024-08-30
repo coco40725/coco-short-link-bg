@@ -23,7 +23,7 @@ dependencies {
     implementation 'io.quarkiverse.googlecloudservices:quarkus-google-cloud-pubsub'
     implementation "io.quarkus:quarkus-smallrye-health"
     implementation "io.quarkus:quarkus-rest-client-jackson"
-
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
     implementation("io.quarkus:quarkus-micrometer-registry-prometheus")
 
     // pod communication: grpc
@@ -31,7 +31,8 @@ dependencies {
 
     testImplementation 'io.quarkus:quarkus-junit5'
     testImplementation 'io.rest-assured:rest-assured'
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    testImplementation "io.quarkus:quarkus-jacoco"
+    testImplementation "io.mockk:mockk:1.13.4"
 }
 
 group 'com.coco'
@@ -60,4 +61,58 @@ compileTestKotlin {
 }
 kotlin {
     jvmToolchain(21)
+}
+
+test {
+    systemProperty "java.util.logging.manager", "org.jboss.logmanager.LogManager"
+    finalizedBy 'parseJacocoReport'
+}
+
+tasks.register('parseJacocoReport') {
+    dependsOn 'test'
+
+    doLast {
+        def csvFile = file('build/jacoco-report/jacoco.csv')
+        if (csvFile.exists()) {
+            def lines = csvFile.readLines()
+            def header = lines[0].split(',')
+
+            def totalInstructionCoveredPercentage = 0
+            def totalBranchCoveredPercentage = 0
+            def countInst = 0
+            def countbranch = 0
+            lines[1..-1].each { line ->
+                def values = line.split(',')
+                def row = [:]
+                header.eachWithIndex { col, i -> row[col] = values[i] }
+
+                def instructionCovered = row["INSTRUCTION_COVERED"] as Integer
+                def instructionMissed = row["INSTRUCTION_MISSED"] as Integer
+                def instructionCoveredPercent = instructionCovered + instructionMissed > 0 ? (instructionCovered * 100) / (instructionCovered + instructionMissed) : "NA"
+
+                def branchCovered = row["BRANCH_COVERED"] as Integer
+                def branchMissed = row["BRANCH_MISSED"] as Integer
+                def branchCoveredPercent = branchCovered + branchMissed > 0 ? (branchCovered * 100) / (branchCovered + branchMissed) : "NA"
+
+                println "${row["GROUP"]},${row["PACKAGE"]},${row["CLASS"]}:"
+                println "- INSTRUCTION_COVERED: ${instructionCoveredPercent}%"
+                println "- BRANCH_COVERED: ${branchCoveredPercent}%"
+                println "===================================================="
+                if (instructionCoveredPercent != "NA"){
+                    totalInstructionCoveredPercentage += instructionCoveredPercent
+                    countInst ++
+                }
+                if (branchCoveredPercent != "NA") {
+                    totalBranchCoveredPercentage += branchCoveredPercent
+                    countbranch ++
+                }
+            }
+            println "==================== Total ========================="
+            println "- INSTRUCTION_COVERED: ${totalInstructionCoveredPercentage / countInst} %"
+            println "- BRANCH_COVERED: ${totalBranchCoveredPercentage / countbranch} %"
+            println "===================================================="
+        } else {
+            println "Jacoco report not found"
+        }
+    }
 }
