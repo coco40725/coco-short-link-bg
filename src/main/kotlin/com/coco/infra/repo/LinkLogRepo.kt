@@ -1,6 +1,7 @@
 package com.coco.infra.repo
 
 import com.coco.domain.model.LinkLog
+import com.coco.infra.config.MongoConfig
 import com.mongodb.ReadPreference
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
 import io.smallrye.mutiny.Uni
@@ -15,15 +16,16 @@ import org.bson.Document
 @ApplicationScoped
 class LinkLogRepo @Inject constructor(
     private val mongoClient: ReactiveMongoClient,
+    private val mongoConfig: MongoConfig
 ){
 
     private val readCol = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkLog")
-        .withReadPreference(ReadPreference.primary())
+        .withReadPreference(ReadPreference.secondaryPreferred())
 
     private val writeCol = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkLog")
 
     private fun toDocument(log: LinkLog?): Document? {

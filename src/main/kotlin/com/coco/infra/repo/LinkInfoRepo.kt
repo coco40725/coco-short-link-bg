@@ -1,6 +1,7 @@
 package com.coco.infra.repo
 
 import com.coco.domain.model.LinkInfo
+import com.coco.infra.config.MongoConfig
 import com.coco.infra.exception.RepoException
 import com.mongodb.ReadPreference
 import com.mongodb.client.model.*
@@ -23,14 +24,15 @@ import java.util.*
 @ApplicationScoped
 class LinkInfoRepo @Inject constructor(
     private val mongoClient: ReactiveMongoClient,
+    private val mongoConfig: MongoConfig
 ){
     private val readCol = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkInfo")
-        .withReadPreference(ReadPreference.primary())
+        .withReadPreference(ReadPreference.secondaryPreferred())
 
     private val writeCol = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkInfo")
 
     private val shortLinkIndex = IndexOptions().name("shortLink")
@@ -211,7 +213,7 @@ class LinkInfoRepo @Inject constructor(
             }
     }
 
-    fun updateOne(session: ClientSession? = null,linkInfo: LinkInfo): Uni<LinkInfo> {
+    fun updateOne(session: ClientSession? = null, linkInfo: LinkInfo): Uni<LinkInfo> {
         val id = linkInfo.id
         val update = createUpdates(linkInfo)
         val colOperation = if (session != null) {
@@ -262,7 +264,7 @@ class LinkInfoRepo @Inject constructor(
             )
         }
         return colOperation.chain { it ->
-            if (!it.wasAcknowledged()) {
+            if (!it.wasAcknowledged() || it.modifiedCount <= 0) {
                 Uni.createFrom().failure(RepoException(
                     className,
                     this::removeExpireDate.name,

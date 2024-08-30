@@ -1,6 +1,7 @@
 package com.coco.infra.repo
 
 import com.coco.domain.model.ErrorLog
+import com.coco.infra.config.MongoConfig
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
 import io.smallrye.mutiny.Uni
 import jakarta.enterprise.context.ApplicationScoped
@@ -13,10 +14,11 @@ import jakarta.inject.Inject
 
 @ApplicationScoped
 class ErrorLogRepo @Inject constructor(
-    private val mongoClient: ReactiveMongoClient
+    private val mongoClient: ReactiveMongoClient,
+    private val mongoConfig: MongoConfig
 ) {
     private val collection = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("ErrorLogs", ErrorLog::class.java)
 
 

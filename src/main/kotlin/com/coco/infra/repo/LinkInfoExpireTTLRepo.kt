@@ -1,5 +1,7 @@
 package com.coco.infra.repo
 
+import com.coco.infra.config.MongoConfig
+import com.mongodb.ReadPreference
 import com.mongodb.client.model.*
 import com.mongodb.reactivestreams.client.ClientSession
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
@@ -19,14 +21,16 @@ import java.util.concurrent.TimeUnit
 @ApplicationScoped
 class LinkInfoExpireTTLRepo @Inject constructor(
     private val mongoClient: ReactiveMongoClient,
+    private val mongoConfig: MongoConfig
 ) {
     private val writeCol = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkInfoExpireTTL")
 
     private val readCol = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkInfoExpireTTL")
+        .withReadPreference(ReadPreference.secondaryPreferred())
 
 
     private val expireTTLExpire = IndexOptions().name("expire")

@@ -1,6 +1,7 @@
 package com.coco.infra.listener
 
 import com.coco.domain.model.LinkInfo
+import com.coco.infra.config.MongoConfig
 import com.coco.infra.repo.LinkInfoRepo
 import com.coco.infra.repo.RedisRepo
 import com.mongodb.client.model.changestream.OperationType
@@ -25,11 +26,12 @@ import java.util.*
 class LinkInfoExpireTTLListener @Inject constructor(
     private val mongoClient: ReactiveMongoClient,
     private val linkInfoRepo: LinkInfoRepo,
-    private val redisRepo: RedisRepo
+    private val redisRepo: RedisRepo,
+    private val mongoConfig: MongoConfig
 ){
 
     private val col = mongoClient
-        .getDatabase("short-link-db")
+        .getDatabase(mongoConfig.database())
         .getCollection("LinkInfoExpireTTL")
 
 

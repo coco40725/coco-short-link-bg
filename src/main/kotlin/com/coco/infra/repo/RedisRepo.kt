@@ -38,7 +38,7 @@ class RedisRepo @Inject constructor(
     }
 
 
-    fun getHash(key: String, field: String): Uni<String> {
+    fun getHash(key: String, field: String): Uni<String?> {
         return hashCmd.hget(key, field)
     }
 
@@ -58,21 +58,29 @@ class RedisRepo @Inject constructor(
     }
 
     fun updateHash(key: String, field: String, value: String): Uni<Boolean> {
-        return hashCmd.hdel(key, field).chain { _ ->
-            hashCmd.hset(key, field, value).chain { it ->
-                if (!it) {
-                    Uni.createFrom().failure(RepoException(
-                        className,
-                        this::updateHash.name,
-                        "Update cache failed. key: $key, field: $field, value: $value"
-                    ))
-                } else {
-                    Uni.createFrom().item(true)
+        return hashCmd.hdel(key, field).chain { count ->
+            if (count == 0) {
+                Uni.createFrom().failure(RepoException(
+                    className,
+                    this::updateHash.name,
+                    "Update cache failed, cause key or field not exist. key: $key, field: $field, value: $value"
+                ))
+            } else {
+                hashCmd.hset(key, field, value).chain { it ->
+                    if (!it) {
+                        Uni.createFrom().failure(RepoException(
+                            className,
+                            this::updateHash.name,
+                            "Update cache failed. key: $key, field: $field, value: $value"
+                        ))
+                    } else {
+                        Uni.createFrom().item(true)
+                    }
                 }
             }
         }
     }
-    fun delKey(key: String): Uni<Int> {
+    fun delKey(key: String): Uni<Boolean> {
         return keyCmd.del(key).chain { it ->
             if (it == 0) {
                 Uni.createFrom().failure(RepoException(
@@ -81,7 +89,7 @@ class RedisRepo @Inject constructor(
                     "Delete cache failed. key: $key"
                 ))
             } else {
-                Uni.createFrom().item(it)
+                Uni.createFrom().item(true)
             }
         }
     }
@@ -90,22 +98,10 @@ class RedisRepo @Inject constructor(
         return listCmd.lrange(key, 0, -1)
     }
 
-    fun popFirstElementFromList(key: String): Uni<String> {
-        return listCmd.lpop(key).chain { it  ->
-
-            if (it == null) {
-                Uni.createFrom().failure(RepoException(
-                    className,
-                    this::popFirstElementFromList.name,
-                    "Pop cache failed. key: $key"
-                ))
-            } else {
-                Uni.createFrom().item(it)
-            }
-
-        }
+    fun popFirstElementFromList(key: String): Uni<String?> {
+        return listCmd.lpop(key)
     }
-    fun addElementToList(key: String, elements: List<String>): Uni<Long>? {
+    fun addElementToList(key: String, elements: List<String>): Uni<Long> {
         return listCmd.lpush(key, *elements.toTypedArray())
     }
 }
