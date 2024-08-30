@@ -9,6 +9,6 @@ import java.util.*
  */
 data class ErrorLog(
     var functionName: String,
-    var param: List<Document>,
+    var param: List<Document?>,
     var createDate: Date,
 )

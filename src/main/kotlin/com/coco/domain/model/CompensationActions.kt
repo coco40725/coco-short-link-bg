@@ -9,6 +9,6 @@ import org.bson.Document
  */
 data class CompensationActions(
     var functionName: String,
-    var params: List<Document>,
+    var params: List<Document?>,
     var action: () -> Uni<*>
 )
