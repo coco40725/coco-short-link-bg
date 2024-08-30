@@ -17,8 +17,9 @@ import java.util.*
 class CompensationService @Inject constructor(
     private val errorLogRepo: ErrorLogRepo
 ) {
-    fun executeCompensation(actions: List<CompensationActions>) {
+    fun executeCompensation(actions: List<CompensationActions>): Uni<Unit> {
         val now = Date()
+        val failUni = mutableListOf<Uni<Boolean>>()
         try {
             actions.forEach { comp ->
                 comp.action()
@@ -28,18 +29,29 @@ class CompensationService @Inject constructor(
                             Log.i(CompensationService::class, "compensation action: ${comp.functionName} success")
                         },
                         { e ->
+                            Log.i(CompensationService::class, "compensation action: ${comp.functionName} failed, cause: ${e.message}")
                             val log = ErrorLog(
                                 functionName = comp.functionName,
                                 param = comp.params,
                                 createDate = now)
-                            errorLogRepo.addOneErrorLog(log)
-                                .subscribe().with {
-                                    Log.i(CompensationService::class, "Error logs added")
-                                }
+                            failUni.add(errorLogRepo.addOneErrorLog(log))
                         }
                     )
             }
-        } catch (_: Exception) { }
+
+            if (failUni.isEmpty()) {
+                Log.i(CompensationService::class, "All compensation actions executed")
+                return Uni.createFrom().item(Unit)
+            } else {
+                return Uni.join().all(failUni).andCollectFailures()
+                    .map { _ ->
+                        Log.i(CompensationService::class, "Error logs added")
+                    }
+            }
+
+        } catch (_: Exception) {
+            return Uni.createFrom().item(Unit)
+        }
 
     }
 }
