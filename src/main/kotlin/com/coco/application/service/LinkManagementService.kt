@@ -76,16 +76,19 @@ class LinkManagementService @Inject constructor(
                 linkInfoRepo.insertOne(session, info).chain { insertedInfo ->
                     when (insertedInfo.expirationDate) {
                         null -> Uni.createFrom().item(insertedInfo)
-                        else -> linkInfoExpireTTLRepo.createOrUpdate(null, insertedInfo.id!!, insertedInfo.shortLink!!, insertedInfo.expirationDate!!).map { insertedInfo  }
+                        else -> linkInfoExpireTTLRepo.createOrUpdate(session, insertedInfo.id!!, insertedInfo.shortLink!!, insertedInfo.expirationDate!!).map { insertedInfo  }
                     }
                 }.chain { _ ->
                     val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
-                    Uni.createFrom().publisher(publisher).map { info }
+                    Uni.createFrom().publisher(publisher).map { info to session }
                 }
             } catch (e: Exception) {
                 val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
-                Uni.createFrom().publisher(publisher).map { null }
+                Uni.createFrom().publisher(publisher).map { null to session }
             }
+        }.map { (info, session) ->
+            session.close()
+            info
         }
 
         val redisUni = redisRepo.setHash(info.shortLink!!,  originalLinkField, info.originalLink!!)
@@ -125,34 +128,55 @@ class LinkManagementService @Inject constructor(
 
         // mongodb
         val mongodbUni = getOriginalUni.chain { originalInfo ->
-            compensationActions.add(CompensationActions(
-                functionName = "linkInfoRepo.updateOne",
-                params = listOf(linkInfoRepo.toDocument(originalInfo)!!),
-                action = { linkInfoRepo.updateOne(null, originalInfo !!) }
-            ))
-            linkInfoRepo.updateOne(null, disabledInfo)
+            if (originalInfo == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::disableLinkInfo.name,
+                    message = "originalLinkInfo is not exist")
+                )
+            } else {
+                compensationActions.add(CompensationActions(
+                    functionName = "linkInfoRepo.updateOne",
+                    params = listOf(linkInfoRepo.toDocument(originalInfo)),
+                    action = { linkInfoRepo.updateOne(null, originalInfo) }
+                ))
+                linkInfoRepo.updateOne(null, disabledInfo)
+            }
+
         }
 
         // redis
         val redisUni = getOriginalUni.chain { originalInfo ->
-            redisRepo.delKey(originalInfo?.shortLink!!).map { it ->
-                compensationActions.add(CompensationActions(
-                    functionName = "redisRepo.setHash",
-                    params = listOf(Document(mapOf("shortLink" to disabledInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
-                    action = { redisRepo.setHash(originalInfo.shortLink!!, originalLinkField, originalInfo.originalLink !!) }
-                ))
-                true
+            if (originalInfo == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::disableLinkInfo.name,
+                    message = "originalLinkInfo is not exist")
+                )
+            } else {
+                redisRepo.delKey(originalInfo.shortLink!!).map { it ->
+                    compensationActions.add(CompensationActions(
+                        functionName = "redisRepo.setHash",
+                        params = listOf(Document(mapOf("shortLink" to originalInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
+                        action = { redisRepo.setHash(originalInfo.shortLink!!, originalLinkField, originalInfo.originalLink !!) }
+                    ))
+                    true
+                }
             }
+
         }
 
         return mongodbUni.chain { e ->
             redisUni
         }.onFailure().invoke { e ->
-            compensationService.executeCompensation(compensationActions)
+            compensationService.executeCompensation(compensationActions).subscribe()
         }
     }
 
 
+    /**
+     * if redis not set success, no need to rollback, since db already has data
+     * */
     fun enabledLinkInfo(id: String): Uni<Boolean> {
         val enabledInfo = LinkInfo(
             id = ObjectId(id),
@@ -179,17 +203,24 @@ class LinkManagementService @Inject constructor(
                     }
                 }.chain { updatedInfo ->
                     val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
-                    Uni.createFrom().publisher(publisher).map { updatedInfo }
+                    Uni.createFrom().publisher(publisher).map { updatedInfo to session  }
                 }
             } catch (e: Exception) {
                 val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
-                Uni.createFrom().publisher(publisher).map { null }
+                Uni.createFrom().publisher(publisher).map { null to session }
             }
+        }.map { (info, session) ->
+            session.close()
+            info
         }
 
         // redis
         val redisUni =  getOriginalUni.chain { originalInfo ->
-            redisRepo.setHash(originalInfo?.shortLink!!,  originalLinkField, originalInfo?.originalLink!!).map { it }
+            if (originalInfo == null) {
+                Uni.createFrom().nullItem()
+            } else {
+                redisRepo.setHash(originalInfo.shortLink!!,  originalLinkField, originalInfo.originalLink!!).map { it }
+            }
         }
 
         return mongodbUni.chain { result ->
@@ -224,30 +255,48 @@ class LinkManagementService @Inject constructor(
 
         // mongodb
         val mongodbUni = getOriginalUni.chain { originalInfo ->
-            compensationActions.add(CompensationActions(
-                functionName = "linkInfoRepo.updateOne",
-                params = listOf(linkInfoRepo.toDocument(originalInfo)!!),
-                action = { linkInfoRepo.updateOne(null, originalInfo !!) }
-            ))
-            linkInfoRepo.updateOne(null, updatedInfo)
+            if (originalInfo == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::changeOriginLink.name,
+                    message = "originalLinkInfo is not exist")
+                )
+            } else {
+                compensationActions.add(CompensationActions(
+                    functionName = "linkInfoRepo.updateOne",
+                    params = listOf(linkInfoRepo.toDocument(originalInfo)!!),
+                    action = { linkInfoRepo.updateOne(null, originalInfo) }
+                ))
+                linkInfoRepo.updateOne(null, updatedInfo)
+            }
+
         }
 
         // redis
         val redisUni = getOriginalUni.chain { originalInfo ->
-            redisRepo.updateHash(originalInfo?.shortLink!!,  originalLinkField, updatedInfo.originalLink!!).map {
-                compensationActions.add(CompensationActions(
-                    functionName = "redisRepo.updateHash",
-                    params = listOf(Document(mapOf("shortLink" to originalInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
-                    action = { redisRepo.updateHash(originalInfo.shortLink!!, originalLinkField, originalInfo.originalLink !!) }
-                ))
+            if (originalInfo == null) {
+                Uni.createFrom().failure(ApplicationException(
+                    className = this::class.simpleName,
+                    funName = this::changeOriginLink.name,
+                    message = "originalLinkInfo is not exist")
+                )
+            } else {
+                redisRepo.updateHash(originalInfo.shortLink!!,  originalLinkField, updatedInfo.originalLink!!).map {
+                    compensationActions.add(CompensationActions(
+                        functionName = "redisRepo.updateHash",
+                        params = listOf(Document(mapOf("shortLink" to originalInfo.shortLink!!)), Document(mapOf("originalLinkField" to originalLinkField))),
+                        action = { redisRepo.updateHash(originalInfo.shortLink!!, originalLinkField, originalInfo.originalLink !!) }
+                    ))
+                }
             }
+
         }
 
         return mongodbUni.chain { _ ->
             redisUni
         }.onFailure().invoke { e ->
             Log.i(LinkManagementService::class, "change link info failed: $e")
-            compensationService.executeCompensation(compensationActions)
+            compensationService.executeCompensation(compensationActions).subscribe()
         }
     }
 
@@ -273,14 +322,17 @@ class LinkManagementService @Inject constructor(
                         linkInfoExpireTTLRepo.createOrUpdate(null, updatedInfo.id!!, updatedInfo.shortLink!!, updatedInfo.expirationDate!!)
                     }.chain { _ ->
                         val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
-                        Uni.createFrom().publisher(publisher).map { true }
+                        Uni.createFrom().publisher(publisher).map { true to session }
                     }
 
                 } catch (e: Exception) {
                     val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
-                    Uni.createFrom().publisher(publisher).map { false }
+                    Uni.createFrom().publisher(publisher).map { false to session }
                 }
 
+            }.map { (info, session) ->
+                session.close()
+                info
             }
 
             mongodbUni
@@ -299,13 +351,17 @@ class LinkManagementService @Inject constructor(
                     }
                 }.chain { updatedInfo ->
                     val publisher = FlowAdapters.toFlowPublisher(session.commitTransaction())
-                    Uni.createFrom().publisher(publisher).map { updatedInfo }
+                    Uni.createFrom().publisher(publisher).map { updatedInfo to session }
                 }
             } catch (e: Exception){
                 val publisher = FlowAdapters.toFlowPublisher(session.abortTransaction())
-                Uni.createFrom().publisher(publisher).map { null }
+                Uni.createFrom().publisher(publisher).map { null to session }
             }
+        }.map { (info, session) ->
+            session.close()
+            info
         }
+
     }
 
     fun checkShortLinkIsExist(shortLink: String): Uni<Boolean> {
@@ -331,10 +387,35 @@ class LinkManagementService @Inject constructor(
 
     fun getShortLinkFromWhiteList(): Uni<String> {
         return redisRepo.popFirstElementFromList(whiteShortLinkKey)
+            .chain { it ->
+                if (it == null) {
+                    Uni.createFrom().failure(
+                        ApplicationException(
+                            className = this::class.simpleName,
+                            funName = this::getShortLinkFromWhiteList.name,
+                            message = "white short link is empty or not exist"
+                        )
+                    )
+                } else {
+                    Uni.createFrom().item(it)
+                }
+            }
     }
 
     fun getWhiteShortLinks(): Uni<List<String>> {
-        return redisRepo.getList(whiteShortLinkKey)
+        return redisRepo.getList(whiteShortLinkKey).chain { it ->
+            if (it == null) {
+                Uni.createFrom().failure(
+                    ApplicationException(
+                        className = this::class.simpleName,
+                        funName = this::getWhiteShortLinks.name,
+                        message = "white short link is not exist"
+                    )
+                )
+            } else {
+                Uni.createFrom().item(it)
+            }
+        }
     }
 
     fun generateWhiteShortLinks(size: Int): Uni<Long> {
