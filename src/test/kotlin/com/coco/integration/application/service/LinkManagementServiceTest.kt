@@ -21,6 +21,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.quarkus.mongodb.reactive.ReactiveMongoClient
 import io.quarkus.redis.datasource.ReactiveRedisDataSource
+import io.quarkus.test.junit.QuarkusMock
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.helpers.test.UniAssertSubscriber
@@ -44,16 +45,6 @@ class LinkManagementServiceTest {
 
     @Inject
     lateinit var linkManagementService: LinkManagementService
-
-    @Inject
-    lateinit var linkInfoExpireTTLRepo: LinkInfoExpireTTLRepo
-    @Inject
-    lateinit var linkInfoRepo: LinkInfoRepo
-
-    @Inject
-    lateinit var linkInfoSvc: LinkInfoSvc
-    @Inject
-    lateinit var compensationService: CompensationService
 
     @Inject
     lateinit var mongoClient: ReactiveMongoClient
@@ -225,11 +216,11 @@ class LinkManagementServiceTest {
         val id = "66c70b72907bc04fd8e9b498"
         // mock  redisRepo.delKey
         val redisRepo = mockk<RedisRepo>()
+        QuarkusMock.installMockForType(redisRepo, RedisRepo::class.java)
         every { redisRepo.delKey(any()) } returns Uni.createFrom().failure(RuntimeException("mock exception"))
 
-        val svc = LinkManagementService(linkInfoRepo, redisRepo, linkInfoExpireTTLRepo, linkInfoSvc, mongoClient, compensationService)
         try {
-            val result = svc.disableLinkInfo(id).await().indefinitely()
+            val result = linkManagementService.disableLinkInfo(id).await().indefinitely()
         } catch (e: Exception){
             Thread.sleep(3000)
             // check if result linkInfo rollback to true
@@ -251,11 +242,11 @@ class LinkManagementServiceTest {
         val id = "66c70b72907bc04fd8e9b498"
         // mock  redisRepo.delKey
         val redisRepo = mockk<RedisRepo>()
+        QuarkusMock.installMockForType(redisRepo, RedisRepo::class.java)
         every { redisRepo.delKey(any()) } throws RuntimeException("mock exception")
 
-        val svc = LinkManagementService(linkInfoRepo, redisRepo, linkInfoExpireTTLRepo, linkInfoSvc, mongoClient, compensationService)
         try {
-            val result = svc.disableLinkInfo(id).await().indefinitely()
+            val result = linkManagementService.disableLinkInfo(id).await().indefinitely()
         } catch (e: Exception){
             Thread.sleep(3000)
             // check if result linkInfo rollback to true
@@ -294,11 +285,11 @@ class LinkManagementServiceTest {
         val id = "66c70b62907bc04fd8e9b447"
         // mock redisRepo.delKey
         val redisRepo = mockk<RedisRepo>()
+        QuarkusMock.installMockForType(redisRepo, RedisRepo::class.java)
         every { redisRepo.setHash(any(), any(), any()) } returns Uni.createFrom().failure(RuntimeException("mock exception"))
 
         try {
-            val svc = LinkManagementService(linkInfoRepo, redisRepo, linkInfoExpireTTLRepo, linkInfoSvc, mongoClient, compensationService)
-            val result = svc.enabledLinkInfo(id).await().indefinitely()
+            val result = linkManagementService.enabledLinkInfo(id).await().indefinitely()
         } catch (e: Exception) {
             Thread.sleep(3000)
             val linkInfoItem = mongoClient.getDatabase(mongoConfig.database())
@@ -320,11 +311,11 @@ class LinkManagementServiceTest {
         val id = "66c70b62907bc04fd8e9b447"
         // mock redisRepo.delKey
         val redisRepo = mockk<RedisRepo>()
+        QuarkusMock.installMockForType(redisRepo, RedisRepo::class.java)
         every { redisRepo.setHash(any(), any(), any()) } throws RuntimeException("mock exception")
 
         try {
-            val svc = LinkManagementService(linkInfoRepo, redisRepo, linkInfoExpireTTLRepo, linkInfoSvc, mongoClient, compensationService)
-            val result = svc.enabledLinkInfo(id).await().indefinitely()
+            val result = linkManagementService.enabledLinkInfo(id).await().indefinitely()
         } catch (e: Exception){
             Thread.sleep(3000)
             val linkInfoItem = mongoClient.getDatabase(mongoConfig.database())
@@ -390,12 +381,11 @@ class LinkManagementServiceTest {
         val newOriginalLink = "https://juejin.cn/post/7187979210391027767/new"
         // mock redisRepo.updateHash
         val redisRepo = mockk<RedisRepo>()
+        QuarkusMock.installMockForType(redisRepo, RedisRepo::class.java)
         every { redisRepo.updateHash(any(), any(), any()) } throws RuntimeException("mock exception")
 
-        val svc = LinkManagementService(linkInfoRepo, redisRepo, linkInfoExpireTTLRepo, linkInfoSvc, mongoClient, compensationService)
-
         try {
-            val result = svc.changeOriginLink(id, newOriginalLink).await().indefinitely()
+            val result = linkManagementService.changeOriginLink(id, newOriginalLink).await().indefinitely()
         }catch (e: Exception){
             Thread.sleep(3000)
             // check if result linkInfo rollback to true
@@ -418,11 +408,11 @@ class LinkManagementServiceTest {
         val newOriginalLink = "https://juejin.cn/post/7187979210391027767/new"
         // mock redisRepo.updateHash
         val redisRepo = mockk<RedisRepo>()
+        QuarkusMock.installMockForType(redisRepo, RedisRepo::class.java)
         every { redisRepo.updateHash(any(), any(), any()) } returns Uni.createFrom().failure(RuntimeException("mock exception"))
 
-        val svc = LinkManagementService(linkInfoRepo, redisRepo, linkInfoExpireTTLRepo, linkInfoSvc, mongoClient, compensationService)
         try {
-            val result = svc.changeOriginLink(id, newOriginalLink).await().indefinitely()
+            val result = linkManagementService.changeOriginLink(id, newOriginalLink).await().indefinitely()
         }catch (e: Exception){
             Thread.sleep(3000)
             // check if result linkInfo rollback to true
