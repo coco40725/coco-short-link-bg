@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import jakarta.inject.Named
 import java.net.URI
+import java.net.URL
 import java.util.*
 
 /**
@@ -60,7 +61,7 @@ class LinkInfoSvc @Inject constructor(
             if (url.isBlank()) {
                  false
             } else {
-                URI.create(url)
+                URI.create(url).toURL()
                 true
             }
         } catch (e: Exception) {
