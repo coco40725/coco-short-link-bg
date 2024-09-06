@@ -38,7 +38,7 @@ class DisabledLinkInfoValidate @Inject constructor(
         // rule3: verify token
         return  verifyTokenClient.verifyToken(token).chain { payload ->
             if (payload == null) {
-                Uni.createFrom().failure(CommandValidationException(className, com.coco.application.cqrs.command.changeExpireDate.ValidateMessage.TOKEN_INVALID.name))
+                Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.TOKEN_INVALID.name))
             } else {
                 Uni.createFrom().item(DisabledLinkValidateResult(payload))
             }
