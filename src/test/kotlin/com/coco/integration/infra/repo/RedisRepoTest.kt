@@ -1,5 +1,6 @@
 package com.coco.integration.infra.repo
 
+import com.coco.infra.constant.RedisConstant
 import com.coco.infra.exception.RepoException
 import com.coco.infra.repo.RedisRepo
 import io.quarkus.test.junit.QuarkusTest
@@ -35,7 +36,7 @@ class RedisRepoTest {
 
     @Test
     fun `test getHash with exist key return original link`(){
-        redisRepo.getHash("https://short.coco-dev.com/oA2UjxD", "originalLink")
+        redisRepo.getHash("https://short.coco-dev.com/oA2UjxD", RedisConstant.ORIGINAL_LINK_FIELD)
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitItem()
@@ -45,7 +46,7 @@ class RedisRepoTest {
 
     @Test
     fun `test getHash with not exist key return null`(){
-        redisRepo.getHash("https://short.coco-dev.com/xxxxxx", "originalLink")
+        redisRepo.getHash("https://short.coco-dev.com/xxxxxx", RedisConstant.ORIGINAL_LINK_FIELD)
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitItem()
@@ -56,7 +57,7 @@ class RedisRepoTest {
 
     @Test
     fun `test setHash with not exist key return true`(){
-        redisRepo.setHash("xxxx", "originalLink", "uuu")
+        redisRepo.setHash("xxxx", RedisConstant.ORIGINAL_LINK_FIELD, "uuu")
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitItem()
@@ -66,7 +67,7 @@ class RedisRepoTest {
 
     @Test
     fun `test setHash with exist key return RepoException`(){
-        redisRepo.setHash("https://short.coco-dev.com/oA2UjxD", "originalLink", "xx")
+        redisRepo.setHash("https://short.coco-dev.com/oA2UjxD", RedisConstant.ORIGINAL_LINK_FIELD, "xx")
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitFailure()
@@ -85,7 +86,7 @@ class RedisRepoTest {
 
     @Test
     fun `test updateHash with not exist key return RepoException`(){
-        redisRepo.updateHash("xxxx", "originalLink", "xx")
+        redisRepo.updateHash("xxxx", RedisConstant.ORIGINAL_LINK_FIELD, "xx")
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitFailure()
@@ -123,7 +124,7 @@ class RedisRepoTest {
 
     @Test
     fun `test getList with exist key return list`(){
-        redisRepo.getList("whiteList")
+        redisRepo.getList(RedisConstant.WHITE_SHORT_LINK_KEY)
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitItem()
@@ -143,7 +144,7 @@ class RedisRepoTest {
 
     @Test
     fun `test popFirstElementFromList with exist key, and not empty list return first element`(){
-        redisRepo.popFirstElementFromList("whiteList")
+        redisRepo.popFirstElementFromList(RedisConstant.WHITE_SHORT_LINK_KEY)
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitItem()
@@ -173,7 +174,7 @@ class RedisRepoTest {
 
     @Test
     fun `test addElementToList with exist key return list size`(){
-        redisRepo.addElementToList("whiteList", listOf("https://short.coco-dev.com/abc"))
+        redisRepo.addElementToList(RedisConstant.WHITE_SHORT_LINK_KEY, listOf("https://short.coco-dev.com/abc"))
             .subscribe()
             .withSubscriber(UniAssertSubscriber.create())
             .awaitItem()
