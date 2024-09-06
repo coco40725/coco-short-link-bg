@@ -54,7 +54,7 @@ class EnabledLinkInfoValidate @Inject constructor(
             if (expire != true) {
                 Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.SHORT_LINK_EXPIRED.name))
             } else if (payload == null ) {
-                Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.ID_INVALID.name))
+                Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.TOKEN_INVALID.name))
 
             } else {
                 Uni.createFrom().item(EnabledLinkValidateResult(payload))
