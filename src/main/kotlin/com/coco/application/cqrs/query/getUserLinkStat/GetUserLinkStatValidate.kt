@@ -3,6 +3,7 @@ package com.coco.application.cqrs.query.getUserLinkStat
 import com.coco.application.cqrs.query.base.QueryValidateResult
 import com.coco.application.cqrs.query.base.QueryValidator
 import com.coco.application.exception.QueryValidationException
+import com.coco.domain.service.linkInfo.LinkInfoSvc
 import com.coco.infra.client.VerifyTokenClient
 import com.coco.infra.grpc.VerifyTokenGrpc
 import com.coco.infra.restClient.VerifyTokenRestClient
@@ -19,13 +20,14 @@ import org.eclipse.microprofile.rest.client.inject.RestClient
 
 @ApplicationScoped
 class GetUserLinkStatValidate @Inject constructor(
-    @Named("grpc") private val verifyTokenClient: VerifyTokenClient
+    @Named("grpc") private val verifyTokenClient: VerifyTokenClient,
+    private val linkInfoSvc: LinkInfoSvc
 ): QueryValidator<GetUserLinkStatQuery> {
     private val className = GetUserLinkStatValidate::class.java.simpleName
     override fun validateQuery(query: GetUserLinkStatQuery): Uni<QueryValidateResult> {
         val link = query.shortLink
         // rule: link must not be null
-        if (link.isEmpty()) {
+        if (!linkInfoSvc.isShortLinkFormatValid(link)) {
             return Uni.createFrom().failure(QueryValidationException(className, ValidateMessage.SHORT_LINK_INVALID.name))
         }
 
