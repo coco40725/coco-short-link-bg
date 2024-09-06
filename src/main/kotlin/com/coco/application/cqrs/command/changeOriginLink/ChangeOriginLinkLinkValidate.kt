@@ -3,6 +3,7 @@ package com.coco.application.cqrs.command.changeOriginLink
 import com.coco.application.cqrs.command.base.CommandValidateResult
 import com.coco.application.cqrs.command.base.CommandValidator
 import com.coco.application.exception.CommandValidationException
+import com.coco.domain.service.linkInfo.LinkInfoSvc
 import com.coco.infra.client.VerifyTokenClient
 import io.smallrye.mutiny.Uni
 import jakarta.enterprise.context.ApplicationScoped
@@ -16,7 +17,8 @@ import org.bson.types.ObjectId
  */
 @ApplicationScoped
 class ChangeOriginLinkLinkValidate @Inject constructor(
-    @Named("grpc") private val verifyTokenClient: VerifyTokenClient
+    @Named("grpc") private val verifyTokenClient: VerifyTokenClient,
+    private val linkInfoSvc: LinkInfoSvc
 
 ): CommandValidator<ChangeOriginLinkCommand> {
     private val className = ChangeOriginLinkLinkValidate::class.java.simpleName
@@ -28,7 +30,7 @@ class ChangeOriginLinkLinkValidate @Inject constructor(
             return Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.ID_INVALID.name))
         }
         val originLink = command.originLink
-        if (originLink.isEmpty()) {
+        if (!linkInfoSvc.isOriginalLinkFormatValid(originLink)) {
             return Uni.createFrom().failure(CommandValidationException(className, ValidateMessage.ORIGIN_LINK_INVALID.name))
         }
 
