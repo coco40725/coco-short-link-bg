@@ -5,7 +5,6 @@ import com.coco.application.cqrs.query.getUserLinkStat.GetUserLinkStatQuery
 import com.coco.application.cqrs.query.getUserLinkStat.GetUserLinkStatResult
 import com.coco.application.cqrs.query.getUserShortLinkInfo.GetUserShortLinkInfoQuery
 import com.coco.application.cqrs.query.getUserShortLinkInfo.GetUserShortLinkInfoResult
-import com.coco.application.exception.ApplicationException
 import com.coco.application.middleware.auth.JwtRequest
 import com.coco.application.middleware.auth.Logged
 import io.smallrye.mutiny.Uni
@@ -38,7 +37,8 @@ class UserLinkInfoCtrl @Inject constructor(
     @Path("/link-stat")
     @Logged
     fun getUserShortLinkStat(@QueryParam("shortLink") shortLink: String): Uni<GetUserLinkStatResult?> {
-        val query = GetUserLinkStatQuery(shortLink)
-        return executor.executeQuery(query)
+        val query = GetUserLinkStatQuery(shortLink, jwt)
+        return executor.validateQuery(query)
+            .chain { result -> executor.executeQuery(query, result) }
     }
 }
