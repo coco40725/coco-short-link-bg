@@ -12,5 +12,6 @@ data class AddLinkInfoResult(
     var shortLink: String? = null,
     var userId: String? = null,
     var originalLink: String? = null,
+    var createDate: Date? = null,
     var expirationDate: Date? = null
 )

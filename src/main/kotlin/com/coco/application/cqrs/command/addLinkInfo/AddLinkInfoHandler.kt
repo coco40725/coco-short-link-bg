@@ -59,6 +59,7 @@ class AddLinkInfoHandler @Inject constructor(
                     shortLink = insertedLinkInfo?.shortLink,
                     userId = insertedLinkInfo?.userId.toString(),
                     originalLink = insertedLinkInfo?.originalLink,
+                    createDate = insertedLinkInfo?.createDate,
                     expirationDate = insertedLinkInfo?.expirationDate,
                 )
             }
