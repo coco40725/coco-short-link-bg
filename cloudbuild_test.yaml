@@ -4,33 +4,46 @@ steps:
     args: [ "./setVersion.sh", "$TAG_NAME" ]
     id: changeVersion
 
-  # https://cloud.google.com/build/docs/access-github-from-build#prepare_the_build
-  # Access the id_github file from Secret Manager, and setup SSH
-  - name: 'gcr.io/cloud-builders/git'
-    secretEnv: [ 'SSH_KEY' ]
+  - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
+    args: [ '-c', "gcloud secrets versions access latest --secret=coco40725-cloudbuild --format='get(payload.data)' | tr '_-' '/+' | base64 -d > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa" ]
     id: loadSecrets
-    args:
-      - -c
-      - |
-        echo "$$SSH_KEY" >> /root/.ssh/id_rsa
-        chmod 400 /root/.ssh/id_rsa
-        cp known_hosts.github /root/.ssh/known_hosts
-    volumes:
-      - name: 'ssh'
-        path: /root/.ssh
     waitFor:
       - changeVersion
 
-
   - name: gcr.io/cloud-builders/git
-    args: ['git submodule init && git submodule update --remote']
+    args: [ 'git submodule init && git submodule update --remote' ]
     id: gitSubmodule
     waitFor:
       - loadSecrets
-    volumes:
-      - name: 'ssh'
-        path: /root/.ssh
+
+#  # https://cloud.google.com/build/docs/access-github-from-build#prepare_the_build
+#  # Access the id_github file from Secret Manager, and setup SSH
+#  - name: 'gcr.io/cloud-builders/git'
+#    secretEnv: [ 'SSH_KEY' ]
+#    entrypoint: 'bash'
+#    id: loadSecrets
+#    args:
+#      - -c
+#      - |
+#        echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+#        chmod 400 /root/.ssh/id_rsa
+#        cp known_hosts.github /root/.ssh/known_hosts
+#    volumes:
+#      - name: 'ssh'
+#        path: /root/.ssh
+#    waitFor:
+#      - changeVersion
+#
+#
+#  - name: gcr.io/cloud-builders/git
+#    args: ['git submodule init && git submodule update --remote']
+#    id: gitSubmodule
+#    waitFor:
+#      - loadSecrets
+#    volumes:
+#      - name: 'ssh'
+#        path: /root/.ssh
 
   - name: docker/compose
     volumes:
