@@ -18,34 +18,6 @@ steps:
     waitFor:
       - loadSecrets
 
-#  # https://cloud.google.com/build/docs/access-github-from-build#prepare_the_build
-#  # Access the id_github file from Secret Manager, and setup SSH
-#  - name: 'gcr.io/cloud-builders/git'
-#    secretEnv: [ 'SSH_KEY' ]
-#    entrypoint: 'bash'
-#    id: loadSecrets
-#    args:
-#      - -c
-#      - |
-#        echo "$$SSH_KEY" >> /root/.ssh/id_rsa
-#        chmod 400 /root/.ssh/id_rsa
-#        cp known_hosts.github /root/.ssh/known_hosts
-#    volumes:
-#      - name: 'ssh'
-#        path: /root/.ssh
-#    waitFor:
-#      - changeVersion
-#
-#
-#  - name: gcr.io/cloud-builders/git
-#    args: ['git submodule init && git submodule update --remote']
-#    id: gitSubmodule
-#    waitFor:
-#      - loadSecrets
-#    volumes:
-#      - name: 'ssh'
-#        path: /root/.ssh
-
   - name: docker/compose
     volumes:
       - name: "gradle"
@@ -90,13 +62,8 @@ steps:
 substitutions:
   _APP_NAME: coco-short-link-bg
   _PROJECT_ID: aaron-dev-429414
-  _PROJECT_NUMBER: "69650464721"
   _IMAGE_NAME: "asia-east1-docker.pkg.dev/${_PROJECT_ID}/${_APP_NAME}/test-image"
-  _GITHUB_SECRET: "coco40725-cloudbuild"
+
 timeout: 7200s
 options:
   logging: CLOUD_LOGGING_ONLY
-#availableSecrets:
-#  secretManager:
-#    - versionName: projects/${_PROJECT_NUMBER}/secrets/${_GITHUB_SECRET}/versions/latest
-#      env: 'SSH_KEY'
