@@ -95,7 +95,7 @@ substitutions:
 timeout: 7200s
 options:
   logging: CLOUD_LOGGING_ONLY
-availableSecrets:
-  secretManager:
-    - versionName: projects/${_PROJECT_NUMBER}/secrets/${_GITHUB_SECRET}/versions/latest
-      env: 'SSH_KEY'
+#availableSecrets:
+#  secretManager:
+#    - versionName: projects/${_PROJECT_NUMBER}/secrets/${_GITHUB_SECRET}/versions/latest
+#      env: 'SSH_KEY'
