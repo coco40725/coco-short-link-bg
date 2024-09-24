@@ -13,7 +13,7 @@ steps:
 
   - name: gcr.io/cloud-builders/git
     entrypoint: 'bash'
-    args: [ 'git submodule init && git submodule update --remote' ]
+    args: [ '-c', 'git submodule init && git submodule update --remote' ]
     id: gitSubmodule
     waitFor:
       - loadSecrets
