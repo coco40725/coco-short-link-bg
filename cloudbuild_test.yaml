@@ -20,7 +20,7 @@ steps:
 
   - name: docker/compose
     id: start-dind
-    args: ['-f', 'docker-compose.yml', 'up', '-d', 'dind-service']
+    args: ['-f', 'docker-compose.yaml', 'up', '-d', 'dind-service']
 
   - name: docker/compose
     volumes:
