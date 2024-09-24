@@ -6,7 +6,7 @@ steps:
 
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
-    args: [ '-c', "gcloud secrets versions access latest --secret=coco40725-cloudbuild --format='get(payload.data)' | tr '_-' '/+' | base64 -d > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa" ]
+    args: [ '-c', "mkdir -p /root/.ssh && gcloud secrets versions access latest --secret=coco40725-cloudbuild --format='get(payload.data)' | tr '_-' '/+' | base64 -d > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa" ]
     id: loadSecrets
     waitFor:
       - changeVersion
