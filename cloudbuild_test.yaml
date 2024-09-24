@@ -75,3 +75,5 @@ substitutions:
   _PROJECT_ID: aaron-dev-429414
   _IMAGE_NAME: "asia-east1-docker.pkg.dev/${_PROJECT_ID}/${_APP_NAME}/test-image"
 timeout: 7200s
+options:
+  logging: CLOUD_LOGGING_ONLY
