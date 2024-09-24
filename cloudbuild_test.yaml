@@ -1,0 +1,77 @@
+steps:
+  - name: bash
+    entrypoint: /usr/local/bin/bash
+    args: [ "./setVersion.sh", "$TAG_NAME" ]
+    id: changeVersion
+
+  # https://cloud.google.com/build/docs/access-github-from-build#prepare_the_build
+  # Access the id_github file from Secret Manager, and setup SSH
+  - name: 'gcr.io/cloud-builders/git'
+    secretEnv: [ 'SSH_KEY' ]
+    entrypoint: 'bash'
+    id: loadSecrets
+    args:
+      - -c
+      - |
+        echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+        chmod 400 /root/.ssh/id_rsa
+        cp known_hosts.github /root/.ssh/known_hosts
+    volumes:
+      - name: 'ssh'
+        path: /root/.ssh
+    waitFor:
+      - changeVersion
+
+
+  - name: gcr.io/cloud-builders/git
+    args: ['git submodule init && git submodule update --remote']
+    id: gitSubmodule
+    waitFor:
+      - loadSecrets
+
+  - name: docker/compose
+    volumes:
+      - name: "gradle"
+        path: "/root/.gradle"
+    args: ["run", "-v", "/workspace:/mnt", "-w", "/mnt", "--rm", "gradle", "./gradlew", "clean"]
+
+  - name: docker/compose
+    volumes:
+      - name: 'gradle'
+        path: '/root/.gradle'
+    args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
+
+
+  - name: docker/compose
+    volumes:
+      - name: "gradle"
+        path: "/root/.gradle"
+    args: ["run", "-v", "/workspace:/mnt", "-v", "/.gradle:/root/.gradle", "-w", "/mnt", "--rm", "gradle", "./gradlew", "quarkusBuild"]
+
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "src/main/docker/Dockerfile.jvm", "-t", "${_IMAGE_NAME}:$TAG_NAME", "-t", "${_IMAGE_NAME}:latest", "."]
+
+  - name: gcr.io/cloud-builders/docker
+    args: ["push", "${_IMAGE_NAME}:$TAG_NAME"]
+
+  - name: gcr.io/cloud-builders/docker
+    args: ["push", "${_IMAGE_NAME}:latest"]
+
+  - name: gcr.io/cloud-builders/kubectl
+    args:
+      - "-n"
+      - "coco"
+      - "set"
+      - "image"
+      - "deployment"
+      - "${_APP_NAME}"
+      - "${_APP_NAME}=${_IMAGE_NAME}:$TAG_NAME"
+    env:
+      - "CLOUDSDK_COMPUTE_ZONE=asia-east1-a"
+      - "CLOUDSDK_CONTAINER_CLUSTER=aaron-dev--auto-cluster"
+
+substitutions:
+  _APP_NAME: coco-short-link-bg
+  _PROJECT_ID: aaron-dev-429414
+  _IMAGE_NAME: "asia-east1-docker.pkg.dev/${_PROJECT_ID}/${_APP_NAME}/test-image"
+timeout: 7200s
