@@ -19,6 +19,10 @@ steps:
       - loadSecrets
 
   - name: docker/compose
+    id: start-dind
+    args: ['-f', 'docker-compose.yml', 'up', '-d', 'dind-service']
+
+  - name: docker/compose
     volumes:
       - name: "gradle"
         path: "/root/.gradle"
