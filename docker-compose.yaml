@@ -7,13 +7,14 @@ services:
       - "8080:8080"
     depends_on:
       - "mongo"
+      - "redis"
 
-  dind-service:
-    image: docker:dind
-    privileged: true
-    ports:
-      - "127.0.0.1:2375:2375"
-      - "127.0.0.1:2376:2376"
   mongo:
     image: mongo
     restart: always
+
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - "6379:6379"
