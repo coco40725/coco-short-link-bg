@@ -4,6 +4,14 @@ steps:
     args: [ "./setVersion.sh", "$TAG_NAME" ]
     id: changeVersion
 
+  - name: bash
+    entrypoint: /usr/local/bin/bash
+    args:
+        - -c
+        - |
+          echo $'\n  MONGODB_URI: '$$MONGODB_URI
+    secretEnv: ['MONGODB_URI']
+
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
     args: [ '-c', "mkdir -p /root/.ssh && gcloud secrets versions access latest --secret=coco40725-cloudbuild --format='get(payload.data)' | tr '_-' '/+' | base64 -d > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa" ]
@@ -29,7 +37,7 @@ steps:
     volumes:
       - name: 'gradle'
         path: '/root/.gradle'
-    args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', 'MONGODB_URI=$$MONGODB_URI ./gradlew', 'test', '--info' ]
+    args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
     secretEnv: ['MONGODB_URI']
 
 
