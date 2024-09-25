@@ -4,14 +4,6 @@ steps:
     args: [ "./setVersion.sh", "$TAG_NAME" ]
     id: changeVersion
 
-  - name: bash
-    entrypoint: /usr/local/bin/bash
-    args:
-        - -c
-        - |
-          echo $'\n  MONGODB_URI: '$$MONGODB_URI
-    secretEnv: ['MONGODB_URI']
-
   - name: gcr.io/cloud-builders/gcloud
     entrypoint: 'bash'
     args: [ '-c', "mkdir -p /root/.ssh && gcloud secrets versions access latest --secret=coco40725-cloudbuild --format='get(payload.data)' | tr '_-' '/+' | base64 -d > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa" ]
