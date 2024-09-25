@@ -30,7 +30,7 @@ steps:
       - name: 'gradle'
         path: '/root/.gradle'
     args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
-    secretEnv: ['MONGODB_URI']
+    secretEnv: ['GOOGLE_APPLICATION_CREDENTIALS']
 
 
   - name: docker/compose
@@ -73,5 +73,5 @@ options:
 
 availableSecrets:
   secretManager:
-    - versionName: projects/69650464721/secrets/coco-mongo-uri/versions/latest
-      env: 'MONGODB_URI'
+    - versionName: projects/69650464721/secrets/GOOGLE_APPLICATION_CREDENTIALS/versions/latest
+      env: 'GOOGLE_APPLICATION_CREDENTIALS'
