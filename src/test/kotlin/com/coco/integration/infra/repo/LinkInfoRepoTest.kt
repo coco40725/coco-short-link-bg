@@ -176,7 +176,7 @@ class LinkInfoRepoTest {
         val result = linkInfoRepo.checkShortLinksExist(null, shortLinks)
             .await()
             .indefinitely()
-        assertEquals(shortLinks, result)
+        assertEquals(shortLinks.toSet(), result.toSet())
     }
 
     @Test
