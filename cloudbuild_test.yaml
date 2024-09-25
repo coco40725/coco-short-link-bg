@@ -68,3 +68,9 @@ substitutions:
 timeout: 7200s
 options:
   logging: CLOUD_LOGGING_ONLY
+
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/69650464721/secrets/coco-mongo-uri
+      env: 'MONGODB_URI'
