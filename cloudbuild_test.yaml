@@ -30,6 +30,7 @@ steps:
       - name: 'gradle'
         path: '/root/.gradle'
     args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
+    secretEnv: ['MONGODB_URI']
 
 
   - name: docker/compose
