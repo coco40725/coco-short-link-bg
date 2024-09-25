@@ -29,7 +29,7 @@ steps:
     volumes:
       - name: 'gradle'
         path: '/root/.gradle'
-    args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
+    args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', 'MONGODB_URI=$$MONGODB_URI ./gradlew', 'test', '--info' ]
     secretEnv: ['MONGODB_URI']
 
 
