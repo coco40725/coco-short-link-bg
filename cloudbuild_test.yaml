@@ -26,14 +26,15 @@ steps:
     args: ["run", "-v", "/workspace:/mnt", "-w", "/mnt", "--rm", "gradle", "./gradlew", "clean"]
 
   - name: docker/compose
+    network: "cloudbuild"
     volumes:
       - name: 'gradle'
         path: '/root/.gradle'
     args: [ 'run', '-v', '/workspace:/mnt', '-v', '/.gradle:/root/.gradle', '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
-    secretEnv: ['GOOGLE_APPLICATION_CREDENTIALS']
 
 
   - name: docker/compose
+    network: "cloudbuild"
     volumes:
       - name: "gradle"
         path: "/root/.gradle"
@@ -69,9 +70,3 @@ substitutions:
 timeout: 7200s
 options:
   logging: CLOUD_LOGGING_ONLY
-
-
-availableSecrets:
-  secretManager:
-    - versionName: projects/69650464721/secrets/GOOGLE_APPLICATION_CREDENTIALS/versions/latest
-      env: 'GOOGLE_APPLICATION_CREDENTIALS'
