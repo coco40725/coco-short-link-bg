@@ -19,20 +19,20 @@ steps:
       - loadSecrets
 
 
-  - name: docker/compose
+  - name: docker/compose:2.24.1
     volumes:
       - name: "gradle"
         path: "/root/.gradle"
     args: ["run", "-v", "/workspace:/mnt", "-w", "/mnt", "--rm", "gradle", "./gradlew", "clean"]
 
-  - name: docker/compose
+  - name: docker/compose:2.24.1
     volumes:
       - name: 'gradle'
         path: '/root/.gradle'
     args: [ 'run', '-v', '/workspace:/mnt',  '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
 
 
-  - name: docker/compose
+  - name: docker/compose:2.24.1
     volumes:
       - name: "gradle"
         path: "/root/.gradle"
