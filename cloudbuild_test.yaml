@@ -33,7 +33,6 @@ steps:
 
 
   - name: docker/compose
-    network: "cloudbuild"
     volumes:
       - name: "gradle"
         path: "/root/.gradle"
