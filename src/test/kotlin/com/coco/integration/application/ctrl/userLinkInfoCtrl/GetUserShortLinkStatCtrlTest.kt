@@ -2,7 +2,9 @@ package com.coco.integration.application.ctrl.userLinkInfoCtrl
 
 import com.coco.application.cqrs.query.getUserLinkStat.ValidateMessage
 import com.coco.application.middleware.auth.JwtRequest
+import com.coco.domain.model.LinkLog
 import com.coco.domain.model.User
+import com.coco.infra.bigQuery.ShortLinkBigQuery
 import com.coco.infra.config.WebConfig
 import com.coco.infra.grpc.VerifyTokenGrpc
 import com.coco.integration.infra.repo.SetupData
@@ -32,6 +34,7 @@ class GetUserShortLinkStatCtrlTest {
     lateinit var webConfig: WebConfig
 
     private val verifyTokenClient = mockk<VerifyTokenGrpc>()
+    private val shortLinkBigQuery = mockk<ShortLinkBigQuery>()
     private val jwt = mockk<JwtRequest>()
 
     @BeforeEach
@@ -39,6 +42,7 @@ class GetUserShortLinkStatCtrlTest {
         setupData.beforeEach()
         QuarkusMock.installMockForType(verifyTokenClient, VerifyTokenGrpc::class.java)
         QuarkusMock.installMockForType(jwt, JwtRequest::class.java)
+        QuarkusMock.installMockForType(shortLinkBigQuery, ShortLinkBigQuery::class.java)
     }
 
     @AfterEach
@@ -58,6 +62,27 @@ class GetUserShortLinkStatCtrlTest {
             emailVerify = true
         )
         every { verifyTokenClient.verifyToken(any()) } returns Uni.createFrom().item(user)
+        val logs = listOf(
+            LinkLog(
+                shortLink = "shortLink",
+                referer = "referer1",
+                refererIP = "ip1",
+                userAgent = "userAgent1"
+            ),
+            LinkLog(
+                shortLink = "shortLink",
+                referer = "referer2",
+                refererIP = "ip2",
+                userAgent = "userAgent2"
+            ),
+            LinkLog(
+                shortLink = "shortLink",
+                referer = "referer1",
+                refererIP = "ip1",
+                userAgent = "userAgent1"
+            )
+        )
+        every {shortLinkBigQuery.getDataByShortLink(any())} returns logs
         given()
             .`when`()
             .queryParams("shortLink", "${webConfig.websiteDomain()}/enable-1")

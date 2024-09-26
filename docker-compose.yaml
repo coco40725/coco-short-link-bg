@@ -10,16 +10,23 @@ services:
       - "mongo2"
       - "mongo3"
       - "redis"
+    volumes:
+      - ".:/mnt"
 
+    working_dir: /mnt
+    command:
+      - /bin/bash
+      - -c
+      - |
+        ./gradlew clean && 
+        ./gradlew test --info
 
   redis:
     image: redis
     restart: always
     ports:
       - "6379:6379"
-#  mongo:
-#    image: mongo
-#    restart: always
+
   mongo1:
     image: mongo
     command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
