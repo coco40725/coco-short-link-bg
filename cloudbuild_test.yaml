@@ -20,8 +20,23 @@ steps:
 
 
   - name: docker/compose
-    args: ['up']
+    volumes:
+      - name: "gradle"
+        path: "/root/.gradle"
+    args: ["run", "-v", "/workspace:/mnt", "-w", "/mnt", "--rm", "gradle", "./gradlew", "clean"]
 
+  - name: docker/compose
+    volumes:
+      - name: 'gradle'
+        path: '/root/.gradle'
+    args: [ 'run', '-v', '/workspace:/mnt',  '-w', '/mnt', '--rm', 'gradle', './gradlew', 'test', '--info' ]
+
+
+  - name: docker/compose
+    volumes:
+      - name: "gradle"
+        path: "/root/.gradle"
+    args: ["run", "-v", "/workspace:/mnt", "-v", "/.gradle:/root/.gradle", "-w", "/mnt", "--rm", "gradle", "./gradlew", "quarkusBuild"]
 
   - name: gcr.io/cloud-builders/docker
     args: ["build", "-f", "src/main/docker/Dockerfile.jvm", "-t", "${_IMAGE_NAME}:$TAG_NAME", "-t", "${_IMAGE_NAME}:latest", "."]

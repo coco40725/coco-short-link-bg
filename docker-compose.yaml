@@ -3,24 +3,34 @@ version: '3.1'
 services:
   gradle:
     image: openjdk:17-jdk-slim
+    healthcheck:
+      test: [ "CMD", "mongosh", "--port", "27017", "--eval", "rs.status()" ]
+      interval: 5s
+      timeout: 30s
+      retries: 30
     ports:
       - "8080:8080"
     depends_on:
-      - "mongo1"
-      - "mongo2"
-      - "mongo3"
-      - "redis"
-    volumes:
-      - ".:/mnt"
+      mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_started
+      mongo3:
+        condition: service_started
+      redis:
+        condition: service_started
 
-    working_dir: /mnt
-    command:
-      - /bin/bash
-      - -c
-      - |
-        ./gradlew clean && 
-        ./gradlew test --info
-        ./gradlew quarkusBuild
+#
+#    volumes:
+#      - ".:/mnt"
+#
+#    working_dir: /mnt
+#    command:
+#      - /bin/bash
+#      - -c
+#      - |
+#        ./gradlew clean &&
+#        ./gradlew test --info
 
   redis:
     image: redis
