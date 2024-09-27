@@ -2,7 +2,7 @@ version: '3.1'
 
 services:
   gradle:
-    image: openjdk:17-jdk-slim
+    image: openjdk:21-jdk-slim
     healthcheck:
       test: [ "CMD", "mongosh", "--port", "27017", "--eval", "rs.status()" ]
       interval: 5s
@@ -38,27 +38,34 @@ services:
     ports:
       - "6379:6379"
 
+  # After running rs.initiate() you have to wait a some time till replica set is initiated.
   mongo1:
     image: mongo
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    entrypoint: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    restart: always
     ports:
       - 27017:27017
     healthcheck:
-      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:27017',priority:1},{_id:1,host:'mongo2:27018',priority:0.5},{_id:2,host:'mongo3:27019',priority:0.5}]}) }" | mongosh --port 27017 --quiet
+      test: echo "
+          rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo1:27017',priority:1},{_id:1,host:'mongo2:27018',priority:0.5},{_id:2,host:'mongo3:27019',priority:0.5}]})
+        " | mongosh --port 27017 --quiet
       interval: 5s
       timeout: 30s
       retries: 30
+    depends_on:
+      - mongo2
+      - mongo3
 
   mongo2:
     image: mongo
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
+    entrypoint: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27018"]
     ports:
       - 27018:27018
 
 
+
   mongo3:
     image: mongo
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27019"]
+    entrypoint: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27019"]
     ports:
       - 27019:27019
-

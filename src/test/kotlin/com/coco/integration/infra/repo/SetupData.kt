@@ -29,6 +29,8 @@ class SetupData @Inject constructor(
         setLinkInfoExpireTTLData()
         setLinkInfoData()
         setShortLinkRedisData()
+        // wait 5 seconds for data to be ready
+        Thread.sleep(5000)
     }
 
 
@@ -40,6 +42,8 @@ class SetupData @Inject constructor(
         cleanLinkInfoExpireTTLData()
         cleanLinkInfoData()
         cleanShortLinkRedisData()
+        // wait 5 seconds for data to be ready
+        Thread.sleep(5000)
     }
 
     private fun setLinkInfoExpireTTLData(){
