@@ -29,7 +29,7 @@ class LinkInfoRepo @Inject constructor(
     private val readCol = mongoClient
         .getDatabase(mongoConfig.database())
         .getCollection("LinkInfo")
-        .withReadPreference(ReadPreference.secondaryPreferred())
+
 
     private val writeCol = mongoClient
         .getDatabase(mongoConfig.database())
